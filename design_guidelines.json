@@ -1,0 +1,163 @@
+{
+  "app_name": "radacini",
+  "personality": "7 Dark-First Utility DARK",
+  "personality_one_liner": "A high-performance, dark-neon automotive command center built for instant diagnostics and precise technical readouts.",
+  "color": {
+    "surface": "#050505",
+    "onSurface": "#FFFFFF",
+    "surfaceSecondary": "#121214",
+    "onSurfaceSecondary": "#E0E0E0",
+    "surfaceTertiary": "#1C1C1F",
+    "onSurfaceTertiary": "#A0A0A5",
+    "surfaceInverse": "#FFFFFF",
+    "onSurfaceInverse": "#000000",
+    "brand": "#00E5FF",
+    "brandPrimary": "#00E5FF",
+    "onBrandPrimary": "#000000",
+    "brandSecondary": "#00A3FF",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#003344",
+    "onBrandTertiary": "#00E5FF",
+    "success": "#00FF66",
+    "onSuccess": "#000000",
+    "warning": "#FFD600",
+    "onWarning": "#000000",
+    "error": "#FF2A55",
+    "onError": "#FFFFFF",
+    "info": "#00E5FF",
+    "onInfo": "#000000",
+    "border": "#2C2C30",
+    "borderStrong": "#4A4A52",
+    "divider": "#1C1C1F",
+    "engine": "#FF9900",
+    "transmission": "#9D00FF",
+    "lights": "#FFD600",
+    "brakes": "#FF2A55"
+  },
+  "typography": {
+    "displayFontFamily": "Rajdhani",
+    "textFontFamily": "IBM Plex Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous margin for structural layout, dense padding within data cards for scanability. Use 16px safe-area offsets.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "MaterialCommunityIcons",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": [
+      "Use solid dark surfaces separated by hairlines (divider) to maintain high readability and utility feel."
+    ],
+    "dont's": [
+      "No blur or glassmorphism on data-heavy dashboard screens; clarity and OLED-friendly contrast is priority."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Connect",
+      "purpose": "Searches for and connects to the OBD-II device via Bluetooth.",
+      "states": {
+        "loading": "Connecting... with a pulsating neon blue ring animation.",
+        "empty": "No devices found within range. Illustration of OBD plug + retry.",
+        "error": "Connection failed. Make sure device is plugged in and ignition is ON."
+      },
+      "layout": "Hero layout with the abstract neon blue light background (Layer 1). A central radar/scanning animation. Bottom sheet overlay displaying discovered BLE devices in a list row format with connection state (Blue = Connectable). Large 'Connect' sticky bottom button."
+    },
+    {
+      "name": "Dashboard",
+      "purpose": "Displays vital vehicle info (VIN, Make, Year, Mileage) and acts as the launchpad for car scanning.",
+      "states": {
+        "loading": "Skeleton rows for car data fetching.",
+        "empty": "N/A - Dashboard only shows after successful connection.",
+        "error": "Error reading vehicle ECU. Retry button."
+      },
+      "layout": "Profile-style header featuring a dark sports car image with a vertical gradient-to-dark scrim. Tabular grid layout below for Vehicle details (VIN, Model, Year). Large sticky CTA pinned at the bottom: 'Scan Car' (brandPrimary background)."
+    },
+    {
+      "name": "FaultCodes",
+      "purpose": "Displays the result of the diagnostic scan, listing DTCs grouped by system or a clean bill of health.",
+      "states": {
+        "loading": "Simulated scanning progress bar with scanning metrics (Checking Engine... Checking ABS...).",
+        "empty": "No Errors state: Large success checkmark icon, 'All Systems Go' text, neon green accents.",
+        "error": "Failed to read codes. Retry button."
+      },
+      "layout": "Segmented list view. Each row represents a fault code (e.g., P0300) with bold alphanumeric text and a descriptive subtext. Group tags (Engine, Transmission, Lights) use distinct colored chips (e.g., engine = orange, transmission = purple). Sticky bottom CTA 'Send check result' over a solid surface background."
+    },
+    {
+      "name": "History",
+      "purpose": "Lists previously saved car check results from the database.",
+      "states": {
+        "loading": "Activity indicator centered.",
+        "empty": "No past scans. Subtitle: 'Your diagnostic history will appear here.'",
+        "error": "Failed to load history from database."
+      },
+      "layout": "Scrollable list of cards. Each card shows Date, Vehicle Make/Model, and number of faults found (badge). Use divider lines between list rows instead of full cards to maintain utility feel."
+    }
+  ],
+  "images": {
+    "hero_bg": {
+      "url": "https://images.unsplash.com/photo-1627819098699-d8ae75db1112?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMG5lb24lMjBibHVlJTIwbGlnaHQlMjBzdHJlYWtzJTIwYmxhY2slMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc4NjI5Mjg1MXww&ixlib=rb-4.1.0&q=85",
+      "alt": "Abstract neon blue light streaks on black background"
+    },
+    "car_profile": {
+      "url": "https://images.unsplash.com/photo-1580014317999-e9f1936787a5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwxfHxzcG9ydHMlMjBjYXIlMjBkYXJrJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3ODYyOTI4NTZ8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Modern sports car taillights on dark background"
+    },
+    "dashboard_empty": {
+      "url": "https://images.unsplash.com/photo-1517026575980-3e1e2dedeab4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzV8MHwxfHNlYXJjaHwxfHxjaGVjayUyMGVuZ2luZSUyMGxpZ2h0JTIwZGFzaGJvYXJkJTIwZGFya3xlbnwwfHx8fDE3ODYyOTI4NTZ8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Analog tachometer glowing in the dark"
+    }
+  },
+  "haptics": {
+    "events": {
+      "connect_device": "impactMedium",
+      "scan_start": "impactHeavy",
+      "scan_complete": "notificationSuccess",
+      "send_result": "impactLight",
+      "error_found": "notificationWarning"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the Dark-First Utility DARK guidelines. Rely on sharp contrast and deep blacks (#050505 base, #121214 cards). Do not introduce any white backgrounds or light theme modes.",
+    "The primary brand color is Neon Cyan (#00E5FF) representing the 'radacini' identity as requested. Use this for main active states, scan animations, and the primary Connect/Scan buttons.",
+    "Implement the 'Connect' screen as a hero view using the `hero_bg` image with a top-to-bottom gradient scrim to ensure text remains readable.",
+    "In the FaultCodes list, use the specific color tokens defined in the guidelines for grouping categories (engine=orange, transmission=purple, lights=yellow, brakes=red) inside small rounded tags or badges.",
+    "Ensure 'Send check result' and 'Scan Car' buttons are sticky at the bottom using a SafeAreaView / bottom padding approach with a solid surface background so scrolling content goes neatly underneath.",
+    "The typography should feel highly technical. Use Rajdhani for all large numeric metrics, error codes (e.g., P0300), and main headers. Use IBM Plex Sans for body and descriptions.",
+    "Always wrap hero/cover images (like `car_profile`) with an expo-linear-gradient scrim (transparent to surface color) to ensure any overlaid white text is readable.",
+    "Avoid glassmorphism. Use solid colors and simple 1px borders (`border` token) for section dividers to keep the utility UI sharp and OLED-friendly."
+  ]
+}
