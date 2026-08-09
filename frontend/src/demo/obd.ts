@@ -1,0 +1,168 @@
+// Demo OBD-II simulation layer.
+// Generates fake Bluetooth adapters, vehicle info (read from ECU) and stored
+// fault codes (DTCs). This is swapped for real BLE later.
+
+export type ObdDevice = {
+  id: string;
+  name: string;
+  address: string;
+  rssi: number;
+};
+
+export type Vehicle = {
+  vin: string;
+  make: string;
+  model: string;
+  year: number;
+  mileage: number;
+};
+
+export type Fault = {
+  code: string;
+  group: string; // engine | transmission | lights | brakes | emissions | electrical | body
+  title: string;
+  description: string;
+  severity: "low" | "medium" | "high";
+};
+
+const rand = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+const randInt = (min: number, max: number) =>
+  Math.floor(Math.random() * (max - min + 1)) + min;
+
+export const DEMO_DEVICES: ObdDevice[] = [
+  { id: "d1", name: "OBDII ELM327 v1.5", address: "00:1D:A5:68:98:8B", rssi: -52 },
+  { id: "d2", name: "Vgate iCar Pro BLE", address: "AC:9A:22:1F:04:7C", rssi: -67 },
+];
+
+const VEHICLES: Omit<Vehicle, "vin" | "mileage">[] = [
+  { make: "Volkswagen", model: "Passat B8", year: 2018 },
+  { make: "BMW", model: "320i F30", year: 2016 },
+  { make: "Toyota", model: "Camry XV70", year: 2020 },
+  { make: "Audi", model: "A4 B9", year: 2019 },
+  { make: "Ford", model: "Focus Mk3", year: 2015 },
+  { make: "Mercedes-Benz", model: "C 200 W205", year: 2017 },
+];
+
+const VIN_CHARS = "ABCDEFGHJKLMNPRSTUVWXYZ0123456789";
+const genVin = (): string =>
+  Array.from({ length: 17 }, () => rand(VIN_CHARS.split(""))).join("");
+
+export const generateVehicle = (): Vehicle => {
+  const base = rand(VEHICLES);
+  return {
+    ...base,
+    vin: genVin(),
+    mileage: randInt(45_000, 235_000),
+  };
+};
+
+const FAULT_POOL: Fault[] = [
+  {
+    code: "P0300",
+    group: "engine",
+    title: "Random / Multiple Cylinder Misfire",
+    description: "Engine control module detected misfires across multiple cylinders.",
+    severity: "high",
+  },
+  {
+    code: "P0171",
+    group: "engine",
+    title: "System Too Lean (Bank 1)",
+    description: "Air-fuel mixture is leaner than optimal on bank 1.",
+    severity: "medium",
+  },
+  {
+    code: "P0420",
+    group: "emissions",
+    title: "Catalyst Efficiency Below Threshold",
+    description: "Catalytic converter is not operating at expected efficiency.",
+    severity: "medium",
+  },
+  {
+    code: "P0128",
+    group: "engine",
+    title: "Coolant Thermostat Below Regulating Temp",
+    description: "Engine coolant does not reach the required operating temperature.",
+    severity: "low",
+  },
+  {
+    code: "P0740",
+    group: "transmission",
+    title: "Torque Converter Clutch Circuit Malfunction",
+    description: "Fault detected in the torque converter lock-up clutch circuit.",
+    severity: "high",
+  },
+  {
+    code: "P0705",
+    group: "transmission",
+    title: "Transmission Range Sensor Circuit",
+    description: "Range sensor reports an invalid gear position signal.",
+    severity: "medium",
+  },
+  {
+    code: "C1201",
+    group: "brakes",
+    title: "ABS Control System Malfunction",
+    description: "Anti-lock braking system control module reported a fault.",
+    severity: "high",
+  },
+  {
+    code: "B1318",
+    group: "electrical",
+    title: "Battery Voltage Low",
+    description: "System supply voltage dropped below the required threshold.",
+    severity: "medium",
+  },
+  {
+    code: "P2098",
+    group: "emissions",
+    title: "Post Catalyst Fuel Trim Too Lean (Bank 2)",
+    description: "Downstream oxygen sensor reports lean fuel trim on bank 2.",
+    severity: "low",
+  },
+  {
+    code: "B1013",
+    group: "lights",
+    title: "Left Headlamp Circuit Failure",
+    description: "Open or short circuit detected on the left headlamp output.",
+    severity: "low",
+  },
+  {
+    code: "P0455",
+    group: "emissions",
+    title: "EVAP System Large Leak Detected",
+    description: "Evaporative emission system detected a large leak (loose fuel cap).",
+    severity: "low",
+  },
+  {
+    code: "U0100",
+    group: "electrical",
+    title: "Lost Communication with ECM/PCM",
+    description: "CAN bus communication with the engine control module was lost.",
+    severity: "high",
+  },
+];
+
+// Randomly returns 0 (clean) up to 4 stored fault codes.
+export const generateFaults = (): Fault[] => {
+  // ~25% chance of a clean bill of health.
+  if (Math.random() < 0.25) return [];
+  const count = randInt(1, 4);
+  const pool = [...FAULT_POOL];
+  const out: Fault[] = [];
+  for (let i = 0; i < count && pool.length; i++) {
+    const idx = Math.floor(Math.random() * pool.length);
+    out.push(pool.splice(idx, 1)[0]);
+  }
+  return out;
+};
+
+export const GROUP_LABELS: Record<string, string> = {
+  engine: "Engine",
+  transmission: "Transmission",
+  lights: "Lights",
+  brakes: "Brakes",
+  emissions: "Emissions",
+  electrical: "Electrical",
+  body: "Body",
+};
