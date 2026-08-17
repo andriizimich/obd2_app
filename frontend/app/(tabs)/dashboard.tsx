@@ -7,6 +7,7 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import IdEvidence from "@/src/components/IdEvidence";
 import Logo from "@/src/components/Logo";
 import NeonButton from "@/src/components/NeonButton";
 import VinCheck from "@/src/components/VinCheck";
@@ -53,7 +54,7 @@ function StatCell({
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { vehicle, device, runScan, disconnect } = useObd();
+  const { vehicle, device, evidence, runScan, disconnect } = useObd();
 
   if (!vehicle) return <Redirect href="/" />;
 
@@ -108,7 +109,9 @@ export default function Dashboard() {
               {vehicle.make}
             </Text>
             <Text style={styles.carModel}>
-              {vehicle.model} · {vehicle.year}
+              {vehicle.model
+                ? `${vehicle.model} · ${vehicle.year}`
+                : "Vehicle not identified"}
             </Text>
           </View>
         </View>
@@ -151,10 +154,20 @@ export default function Dashboard() {
               testID="stat-mileage"
               icon="speedometer"
               label="MILEAGE"
-              value={`${vehicle.mileage.toLocaleString()} km`}
+              value={vehicle.mileage != null ? `${vehicle.mileage.toLocaleString()} km` : "—"}
               mono
             />
+            {vehicle.engineModel ? (
+              <StatCell
+                testID="stat-engine"
+                icon="engine"
+                label="ENGINE"
+                value={vehicle.engineModel}
+              />
+            ) : null}
           </View>
+
+          {evidence ? <IdEvidence evidence={evidence} /> : null}
         </View>
       </ScrollView>
 

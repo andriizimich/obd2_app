@@ -2,28 +2,11 @@
 // Generates fake Bluetooth adapters, vehicle info (read from ECU) and stored
 // fault codes (DTCs). This is swapped for real BLE later.
 
-export type ObdDevice = {
-  id: string;
-  name: string;
-  address: string;
-  rssi: number;
-};
+// Canonical types live in src/obd/types.ts; re-exported here so existing
+// imports keep working while transports share one definition.
+import type { Fault, ObdDevice, Vehicle } from "@/src/obd/types";
 
-export type Vehicle = {
-  vin: string;
-  make: string;
-  model: string;
-  year: number;
-  mileage: number;
-};
-
-export type Fault = {
-  code: string;
-  group: string; // engine | transmission | lights | brakes | emissions | electrical | body
-  title: string;
-  description: string;
-  severity: "low" | "medium" | "high";
-};
+export type { Fault, ObdDevice, Vehicle };
 
 import { buildDemoVin } from "@/src/utils/vin";
 
@@ -37,14 +20,40 @@ export const DEMO_DEVICES: ObdDevice[] = [
 ];
 
 // WMI is the real-world manufacturer code — demo VINs are built with a valid
-// check digit and decode consistently with the rest of the entry.
+// check digit and decode consistently with the rest of the entry. Enrichment
+// fields mirror what a full vPIC decode returns, so the UI is exercised in
+// demo mode too.
 const VEHICLES: (Omit<Vehicle, "vin" | "mileage"> & { wmi: string })[] = [
-  { make: "Volkswagen", model: "Passat B8", year: 2018, wmi: "WVW" },
-  { make: "BMW", model: "320i F30", year: 2016, wmi: "WBA" },
-  { make: "Toyota", model: "Camry XV70", year: 2020, wmi: "4T1" },
-  { make: "Audi", model: "A4 B9", year: 2019, wmi: "WAU" },
-  { make: "Ford", model: "Focus Mk3", year: 2015, wmi: "1FA" },
-  { make: "Mercedes-Benz", model: "C 200 W205", year: 2017, wmi: "WDD" },
+  {
+    make: "Volkswagen", model: "Passat B8", year: 2018, wmi: "WVW",
+    engineModel: "2.0 TDI", engineCylinders: 4, fuelType: "Diesel",
+    transmission: "Automatic", driveType: "FWD", confidence: "high",
+  },
+  {
+    make: "BMW", model: "320i F30", year: 2016, wmi: "WBA",
+    engineModel: "B48 2.0L", engineCylinders: 4, fuelType: "Gasoline",
+    transmission: "Automatic", driveType: "RWD", confidence: "high",
+  },
+  {
+    make: "Toyota", model: "Camry XV70", year: 2020, wmi: "4T1",
+    engineModel: "2.5L A25A-FKS", engineCylinders: 4, fuelType: "Gasoline",
+    transmission: "Automatic", driveType: "FWD", confidence: "high",
+  },
+  {
+    make: "Audi", model: "A4 B9", year: 2019, wmi: "WAU",
+    engineModel: "2.0 TFSI", engineCylinders: 4, fuelType: "Gasoline",
+    transmission: "Dual-clutch automatic", driveType: "AWD/4WD", confidence: "high",
+  },
+  {
+    make: "Ford", model: "Focus Mk3", year: 2015, wmi: "1FA",
+    engineModel: "1.6 EcoBoost", engineCylinders: 4, fuelType: "Gasoline",
+    transmission: "Manual", driveType: "FWD", confidence: "high",
+  },
+  {
+    make: "Mercedes-Benz", model: "C 200 W205", year: 2017, wmi: "WDD",
+    engineModel: "M274 2.0L", engineCylinders: 4, fuelType: "Gasoline",
+    transmission: "Automatic", driveType: "RWD", confidence: "high",
+  },
 ];
 
 export const generateVehicle = (): Vehicle => {

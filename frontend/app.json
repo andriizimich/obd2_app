@@ -35,6 +35,13 @@
           "resizeMode": "contain",
           "backgroundColor": "#000000"
         }
+      ],
+      [
+        "react-native-ble-plx",
+        {
+          "neverForLocation": true,
+          "bluetoothAlwaysPermission": "radacini uses Bluetooth to find and connect to your OBD-II adapter."
+        }
       ]
     ],
     "experiments": {

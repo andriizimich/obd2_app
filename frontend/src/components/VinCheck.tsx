@@ -10,6 +10,25 @@ type Props = {
   expected: { make: string; model: string; year: number };
 };
 
+type Confidence = "high" | "medium" | "low" | "unknown";
+
+const CONFIDENCE_META: Record<Confidence, { color: string; label: string }> = {
+  high: { color: colors.success, label: "High confidence · full decode" },
+  medium: { color: colors.brand, label: "Medium confidence · basic identity" },
+  low: { color: colors.warning, label: "Low confidence · partial data" },
+  unknown: { color: colors.onSurfaceTertiary, label: "Unconfirmed" },
+};
+
+function ConfidenceLabel({ confidence }: { confidence: Confidence }) {
+  const meta = CONFIDENCE_META[confidence];
+  return (
+    <View style={styles.confidenceRow} testID="vin-decode-confidence">
+      <View style={[styles.confidenceDot, { backgroundColor: meta.color }]} />
+      <Text style={[styles.detailText, { color: meta.color }]}>{meta.label}</Text>
+    </View>
+  );
+}
+
 export default function VinCheck({ vin, expected }: Props) {
   const check = validateVin(vin);
   const { state, retry } = useVinDecode(vin);
@@ -70,6 +89,22 @@ export default function VinCheck({ vin, expected }: Props) {
               Decoded by NHTSA: {state.result.make} {state.result.model && `${state.result.model} · `}
               {state.result.year && state.result.year}
             </Text>
+            <ConfidenceLabel confidence={state.result.confidence} />
+            {state.result.engineModel || state.result.engineCylinders ? (
+              <Text style={styles.detailText}>
+                Engine: {state.result.engineModel}
+                {state.result.engineCylinders ? ` · ${state.result.engineCylinders}-cylinder` : ""}
+              </Text>
+            ) : null}
+            {state.result.fuelType ? (
+              <Text style={styles.detailText}>Fuel: {state.result.fuelType}</Text>
+            ) : null}
+            {state.result.transmission ? (
+              <Text style={styles.detailText}>Transmission: {state.result.transmission}</Text>
+            ) : null}
+            {state.result.driveType ? (
+              <Text style={styles.detailText}>Drive: {state.result.driveType}</Text>
+            ) : null}
             {state.result.plantCountry ? (
               <Text style={styles.detailText}>Plant: {state.result.plantCountry}</Text>
             ) : null}
@@ -96,6 +131,7 @@ export default function VinCheck({ vin, expected }: Props) {
             <Text style={[styles.detailTitle, { color: colors.warning }]}>
               VIN format recognized, but not found in NHTSA database
             </Text>
+            <ConfidenceLabel confidence={state.result.confidence} />
             {state.result.make ? (
               <Text style={styles.detailText} testID="vin-decoded-make">
                 WMI-decoded make: {state.result.make}
@@ -170,6 +206,12 @@ const styles = StyleSheet.create({
     fontSize: type.sm,
     lineHeight: 18,
   },
+  confidenceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  confidenceDot: { width: 6, height: 6, borderRadius: 3 },
   errorText: {
     color: colors.onSurfaceTertiary,
     fontFamily: font.regular,

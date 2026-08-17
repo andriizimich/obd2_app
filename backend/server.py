@@ -36,7 +36,14 @@ class Vehicle(BaseModel):
     make: str
     model: str
     year: int
-    mileage: int
+    mileage: Optional[int] = None  # null until a real odometer read exists
+    # Enrichment from the VIN decoder (optional — older scans lack them).
+    engine_model: Optional[str] = None
+    engine_cylinders: Optional[int] = None
+    fuel_type: Optional[str] = None
+    transmission: Optional[str] = None
+    drive_type: Optional[str] = None
+    confidence: Optional[str] = None  # high | medium | low | manual | unknown
 
 
 class Fault(BaseModel):

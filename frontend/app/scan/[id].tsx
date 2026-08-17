@@ -105,7 +105,10 @@ export default function ScanDetail() {
               {scan.vehicle.make} {scan.vehicle.model}
             </Text>
             <Text style={styles.carMeta}>
-              {scan.vehicle.year} · {scan.vehicle.mileage.toLocaleString()} km
+              {scan.vehicle.year} ·{" "}
+              {scan.vehicle.mileage != null
+                ? `${scan.vehicle.mileage.toLocaleString()} km`
+                : "mileage —"}
             </Text>
             <View style={styles.vinRow}>
               <Text style={styles.vinLabel}>VIN</Text>

@@ -11,7 +11,6 @@ export type Scan = {
   device_name?: string | null;
   created_at: string;
 };
-
 export async function createScan(input: {
   vehicle: Vehicle;
   faults: Fault[];

@@ -8,7 +8,6 @@ import React from "react";
 import {
   Animated,
   Easing,
-  Platform,
   Pressable,
   StyleSheet,
   Switch,
@@ -19,14 +18,27 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Logo from "@/src/components/Logo";
 import NeonButton from "@/src/components/NeonButton";
-import { DEMO_DEVICES } from "@/src/demo/obd";
 import { useObd } from "@/src/context/ObdContext";
+import { getDemoTransport, getTransport, loadMode, saveMode } from "@/src/obd";
+import type { Identification } from "@/src/obd/identify";
+import { identifyVehicle } from "@/src/obd/identify";
+import type { OdbMode } from "@/src/obd/transport";
+import { OdbConnectError, OdbScanError } from "@/src/obd/transport";
+import type { ObdDevice } from "@/src/obd/types";
 import { colors, font, radius, spacing, type } from "@/src/theme";
 
 const HERO =
   "https://images.unsplash.com/photo-1627819098699-d8ae75db1112?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMG5lb24lMjBibHVlJTIwbGlnaHQlMjBzdHJlYWtzJTIwYmxhY2slMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc4NjI5Mjg1MXww&ixlib=rb-4.1.0&q=85";
 
 type Phase = "idle" | "scanning" | "found" | "connecting" | "error";
+
+type ErrorKind =
+  | "none-found"
+  | "bluetooth-off"
+  | "permission-denied"
+  | "unsupported"
+  | "handshake"
+  | "disconnected";
 
 function Radar({ active, color }: { active: boolean; color: string }) {
   const r1 = useRef(new Animated.Value(0)).current;
@@ -84,53 +96,142 @@ function Radar({ active, color }: { active: boolean; color: string }) {
   );
 }
 
+function DeviceCard({
+  device,
+  onPress,
+  disabled,
+}: {
+  device: ObdDevice;
+  onPress?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      testID={`device-card-${device.id}`}
+      onPress={onPress}
+      disabled={disabled}
+      style={({ pressed }) => [styles.deviceCard, pressed && styles.deviceCardPressed]}
+    >
+      <View style={styles.deviceIcon}>
+        <MaterialCommunityIcons
+          name="access-point"
+          size={22}
+          color={colors.brand}
+        />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.deviceName}>{device.name}</Text>
+        <Text style={styles.deviceAddr}>{device.address}</Text>
+      </View>
+      {device.rssi != null && (
+        <View style={styles.signal}>
+          <MaterialCommunityIcons
+            name="signal"
+            size={16}
+            color={colors.success}
+          />
+          <Text style={styles.signalText}>{device.rssi} dBm</Text>
+        </View>
+      )}
+      {onPress && (
+        <MaterialCommunityIcons
+          name="chevron-right"
+          size={22}
+          color={colors.onSurfaceTertiary}
+        />
+      )}
+    </Pressable>
+  );
+}
+
 export default function ConnectScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { connect } = useObd();
 
+  const [mode, setMode] = useState<OdbMode>("demo");
   const [phase, setPhase] = useState<Phase>("idle");
-  const [devicePluggedIn, setDevicePluggedIn] = useState(true);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const [devices, setDevices] = useState<ObdDevice[]>([]);
+  const [connectingTo, setConnectingTo] = useState<ObdDevice | null>(null);
+  const [errorKind, setErrorKind] = useState<ErrorKind | null>(null);
+  const [demoUnplugged, setDemoUnplugged] = useState(false);
 
-  useEffect(
-    () => () => timers.current.forEach(clearTimeout),
-    [],
-  );
+  // Restore the last used mode; demo stays the default for development.
+  useEffect(() => {
+    loadMode().then(setMode);
+  }, []);
 
-  const device = DEMO_DEVICES[0];
+  // Keep the demo transport's unplug simulation in sync with the switch.
+  useEffect(() => {
+    getDemoTransport().simulateUnplugged = demoUnplugged;
+  }, [demoUnplugged]);
 
-  const startSearch = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setPhase("scanning");
-    const t = setTimeout(() => {
-      if (devicePluggedIn) {
-        setPhase("found");
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        setPhase("error");
-      }
-    }, 2200);
-    timers.current.push(t);
+  const reset = useCallback(() => {
+    setPhase("idle");
+    setDevices([]);
+    setConnectingTo(null);
+    setErrorKind(null);
+  }, []);
+
+  const toggleMode = (demo: boolean) => {
+    const next: OdbMode = demo ? "demo" : "ble";
+    setMode(next);
+    saveMode(next);
+    reset();
   };
 
-  const doConnect = () => {
+  const startSearch = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setPhase("connecting");
-    const t = setTimeout(() => {
-      if (!devicePluggedIn) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    setPhase("scanning");
+    const transport = getTransport(mode);
+    const activeMode = mode;
+    try {
+      const found = await transport.scanDevices();
+      if (activeMode !== mode) return; // mode switched mid-scan
+      if (found.length === 0) {
+        setErrorKind("none-found");
         setPhase("error");
         return;
       }
-      connect(device);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace("/(tabs)/dashboard");
-    }, 1400);
-    timers.current.push(t);
+      setDevices(found);
+      setPhase("found");
+    } catch (e) {
+      if (activeMode !== mode) return;
+      setErrorKind(e instanceof OdbScanError ? e.kind : "none-found");
+      setPhase("error");
+    }
   };
 
-  const retry = () => setPhase("idle");
+  const doConnect = async (device: ObdDevice) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPhase("connecting");
+    setConnectingTo(device);
+    const transport = getTransport(mode);
+    try {
+      // Real BLE mode verifies the ELM327 handshake (ATZ + ATI) here;
+      // demo mode just simulates the delay.
+      await transport.connect(device);
+    } catch (e) {
+      transport.disconnect();
+      setErrorKind(e instanceof OdbConnectError ? e.kind : "handshake");
+      setPhase("error");
+      return;
+    }
+    // Identify the vehicle: mode 09 read (VIN/CALID/ECU name/protocol),
+    // vPIC decode and consistency checks. Failing this step must not
+    // block the connection — the dashboard shows the warnings instead.
+    let identification: Identification | undefined;
+    try {
+      identification = await identifyVehicle(transport);
+    } catch {
+      // Defensive: connect() falls back to a generated vehicle.
+    }
+    connect(device, identification);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.replace("/(tabs)/dashboard");
+  };
+
+  const retry = reset;
 
   const statusColor = phase === "error" ? colors.error : colors.brand;
 
@@ -143,19 +244,19 @@ export default function ConnectScreen() {
         };
       case "found":
         return {
-          title: "Adapter found",
-          sub: "Tap connect to link with your vehicle’s ECU.",
+          title:
+            devices.length === 1 ? "Adapter found" : `${devices.length} adapters found`,
+          sub: "Tap your adapter to connect and verify the ELM327 link.",
         };
       case "connecting":
         return {
           title: "Connecting…",
-          sub: "Establishing a link with the OBD-II adapter.",
+          sub: connectingTo
+            ? `Linking with ${connectingTo.name} and verifying the ELM327 handshake.`
+            : "Establishing a link with the OBD-II adapter.",
         };
       case "error":
-        return {
-          title: "Connection failed",
-          sub: "No OBD-II adapter detected.",
-        };
+        return { title: "Connection failed", sub: errorText(errorKind).sub };
       default:
         return {
           title: "Ready to connect",
@@ -204,38 +305,27 @@ export default function ConnectScreen() {
           <Text style={styles.sub}>{sub}</Text>
 
           {phase === "found" && (
-            <View testID="device-card" style={styles.deviceCard}>
-              <View style={styles.deviceIcon}>
-                <MaterialCommunityIcons
-                  name="access-point"
-                  size={22}
-                  color={colors.brand}
+            <View style={styles.deviceList}>
+              {devices.map((device) => (
+                <DeviceCard
+                  key={device.id}
+                  device={device}
+                  onPress={() => doConnect(device)}
                 />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.deviceName}>{device.name}</Text>
-                <Text style={styles.deviceAddr}>{device.address}</Text>
-              </View>
-              <View style={styles.signal}>
-                <MaterialCommunityIcons
-                  name="signal"
-                  size={16}
-                  color={colors.success}
-                />
-                <Text style={styles.signalText}>{device.rssi} dBm</Text>
-              </View>
+              ))}
+            </View>
+          )}
+
+          {phase === "connecting" && connectingTo && (
+            <View style={styles.deviceList}>
+              <DeviceCard device={connectingTo} disabled />
             </View>
           )}
 
           {phase === "error" && (
             <View testID="error-card" style={styles.errorCard}>
               <Text style={styles.errorHeading}>Troubleshooting</Text>
-              {[
-                "Re-plug the OBD-II adapter into the port.",
-                "Make sure the ignition (or engine) is ON.",
-                "Check that Bluetooth is enabled on your phone.",
-                "Move closer to the adapter, then retry.",
-              ].map((tip, i) => (
+              {errorText(errorKind).tips.map((tip, i) => (
                 <View key={i} style={styles.tipRow}>
                   <MaterialCommunityIcons
                     name="chevron-right"
@@ -256,15 +346,33 @@ export default function ConnectScreen() {
               size={16}
               color={colors.onSurfaceTertiary}
             />
-            <Text style={styles.demoLabel}>Simulate adapter unplugged</Text>
+            <Text style={styles.demoLabel}>Demo mode</Text>
             <Switch
-              testID="demo-unplug-switch"
-              value={!devicePluggedIn}
-              onValueChange={(v) => setDevicePluggedIn(!v)}
-              trackColor={{ false: colors.surfaceTertiary, true: colors.error }}
+              testID="demo-mode-switch"
+              value={mode === "demo"}
+              onValueChange={toggleMode}
+              trackColor={{ false: colors.surfaceTertiary, true: colors.brand }}
               thumbColor={colors.onSurface}
             />
           </View>
+
+          {mode === "demo" && (
+            <View style={styles.demoRow}>
+              <MaterialCommunityIcons
+                name="flask-outline"
+                size={16}
+                color={colors.onSurfaceTertiary}
+              />
+              <Text style={styles.demoLabel}>Simulate adapter unplugged</Text>
+              <Switch
+                testID="demo-unplug-switch"
+                value={demoUnplugged}
+                onValueChange={setDemoUnplugged}
+                trackColor={{ false: colors.surfaceTertiary, true: colors.error }}
+                thumbColor={colors.onSurface}
+              />
+            </View>
+          )}
 
           {phase === "idle" && (
             <NeonButton
@@ -280,14 +388,6 @@ export default function ConnectScreen() {
               label="Searching…"
               loading
               onPress={() => {}}
-            />
-          )}
-          {phase === "found" && (
-            <NeonButton
-              testID="connect-button"
-              label="Connect"
-              icon="bluetooth-connect"
-              onPress={doConnect}
             />
           )}
           {phase === "connecting" && (
@@ -310,6 +410,56 @@ export default function ConnectScreen() {
       </View>
     </View>
   );
+}
+
+function errorText(kind: ErrorKind | null): { sub: string; tips: string[] } {
+  switch (kind) {
+    case "bluetooth-off":
+      return {
+        sub: "Bluetooth is turned off on your phone.",
+        tips: ["Turn on Bluetooth in your phone settings, then retry."],
+      };
+    case "permission-denied":
+      return {
+        sub: "Bluetooth permission is required to find adapters.",
+        tips: [
+          "Allow “Nearby devices” (Android 12+) or location permission in system settings for this app.",
+          "Retry the search after granting permission.",
+        ],
+      };
+    case "unsupported":
+      return {
+        sub: "BLE scanning is not supported on this platform.",
+        tips: ["Real adapters work on Android and iOS."],
+      };
+    case "handshake":
+      return {
+        sub: "The adapter did not respond as an ELM327.",
+        tips: [
+          "Make sure the adapter is a BLE ELM327 (Vgate, vLinker, Viecar, KW902).",
+          "Turn the ignition ON so the adapter has power.",
+          "Unplug and re-plug the adapter, then retry.",
+        ],
+      };
+    case "disconnected":
+      return {
+        sub: "The adapter disconnected during connection.",
+        tips: [
+          "Keep the phone close to the adapter and retry.",
+          "Re-plug the adapter into the OBD-II port.",
+        ],
+      };
+    default:
+      return {
+        sub: "No OBD-II adapter detected.",
+        tips: [
+          "Re-plug the OBD-II adapter into the port.",
+          "Make sure the ignition (or engine) is ON.",
+          "Check that Bluetooth is enabled on your phone.",
+          "Move closer to the adapter, then retry.",
+        ],
+      };
+  }
 }
 
 const styles = StyleSheet.create({
@@ -361,6 +511,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     paddingHorizontal: spacing.md,
   },
+  deviceList: {
+    width: "100%",
+    gap: spacing.sm,
+    marginTop: spacing.xl,
+  },
   deviceCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -370,9 +525,9 @@ const styles = StyleSheet.create({
     borderColor: colors.brand,
     borderRadius: radius.md,
     padding: spacing.lg,
-    marginTop: spacing.xl,
     width: "100%",
   },
+  deviceCardPressed: { opacity: 0.65 },
   deviceIcon: {
     width: 44,
     height: 44,

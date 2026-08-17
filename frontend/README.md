@@ -25,6 +25,40 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Real BLE connection (OBD-II adapter)
+
+The connect screen works in two modes, toggled with the **Demo mode** switch:
+
+- **Demo** (default) — simulated adapters from `src/demo/obd.ts`; no hardware needed.
+- **BLE** — real scan and connection to an ELM327 adapter (Vgate iCar Pro, vLinker, Viecar, KW902…) via `react-native-ble-plx`. The connection is verified with an ELM327 handshake (`ATZ` → `ATE0` → `ATI`) over the adapter's UART characteristic.
+
+The transport layer lives in `src/obd/`:
+
+- `transport.ts` — shared interface (`scanDevices` / `connect` / `disconnect`)
+- `demo.ts` — simulation implementation
+- `ble.ts` — real BLE implementation
+- `at.ts` — ELM327 framing/parsing (unit-testable without hardware: `npx tsx scripts/elm327-smoke.ts`)
+
+### Running on a phone (BLE requires a development build)
+
+Expo Go cannot run native Bluetooth modules — you need a development build. With no local Android SDK, use EAS cloud builds:
+
+```bash
+# one-time: log in and link the project
+npx eas-cli login
+npx eas-cli init
+
+# build the dev client (APK with the dev launcher)
+npx eas-cli build --profile development --platform android
+
+# start the dev server; the phone connects to it via the dev client
+npx expo start
+```
+
+Install the resulting APK on the phone, then open the app, switch **Demo mode** off and search. If you have Android Studio installed, `npx expo run:android` builds the dev client locally instead.
+
+Permissions are injected automatically by the `react-native-ble-plx` config plugin in `app.json` (`BLUETOOTH_SCAN`/`CONNECT` on Android 12+, location only below API 31, `NSBluetoothAlwaysUsageDescription` on iOS).
+
 ## Get a fresh project
 
 When you're ready, run:

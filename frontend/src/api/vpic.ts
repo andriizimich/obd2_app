@@ -12,6 +12,13 @@ export type VinDecodeOk = {
   year: string;
   manufacturer: string;
   plantCountry: string;
+  // Enrichment fields (may be empty strings when vPIC has no data).
+  engineModel: string;
+  engineCylinders: string;
+  fuelType: string;
+  transmission: string;
+  driveType: string;
+  confidence: "high" | "medium" | "low";
 };
 
 export type VinDecodePartial = {
@@ -22,6 +29,7 @@ export type VinDecodePartial = {
   model?: string;
   year?: string;
   plantCountry?: string;
+  confidence: "low" | "unknown";
 };
 
 export type VinDecodeFailure = {
@@ -92,14 +100,40 @@ export async function decodeVinRemote(
     const year = field(row.ModelYear);
     const manufacturer = field(row.Manufacturer);
     const plantCountry = field(row.PlantCountry);
+    const engineModel = field(row.EngineModel);
+    const engineCylinders = field(row.EngineCylinders);
+    const fuelType = field(row.FuelTypePrimary);
+    const transmission = field(row.TransmissionStyle);
+    const driveType = field(row.DriveType);
 
     const result: VinDecodeResult =
       codes.includes("0")
-        ? { status: "ok", make, model, year, manufacturer, plantCountry }
+        ? {
+            status: "ok",
+            make,
+            model,
+            year,
+            manufacturer,
+            plantCountry,
+            engineModel,
+            engineCylinders,
+            fuelType,
+            transmission,
+            driveType,
+            // Full identity + at least one deep spec field = high;
+            // identity only = medium; make-only decode = low.
+            confidence:
+              make && model && year && (engineModel || engineCylinders || fuelType || transmission || driveType)
+                ? "high"
+                : make && model && year
+                  ? "medium"
+                  : "low",
+          }
         : {
             status: "partial",
             errorCode: field(row.ErrorCode),
             errorText: field(row.ErrorText) || "VIN not found in NHTSA database",
+            confidence: make ? "low" : "unknown",
             ...(make ? { make } : {}),
             ...(model ? { model } : {}),
             ...(year ? { year } : {}),
