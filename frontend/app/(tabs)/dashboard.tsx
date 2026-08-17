@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Logo from "@/src/components/Logo";
 import NeonButton from "@/src/components/NeonButton";
+import VinCheck from "@/src/components/VinCheck";
 import { useObd } from "@/src/context/ObdContext";
 import { colors, font, radius, spacing, type } from "@/src/theme";
 
@@ -120,6 +121,10 @@ export default function Dashboard() {
             <Text style={styles.vinValue} numberOfLines={1} adjustsFontSizeToFit>
               {vehicle.vin}
             </Text>
+            <VinCheck
+              vin={vehicle.vin}
+              expected={{ make: vehicle.make, model: vehicle.model, year: vehicle.year }}
+            />
           </View>
 
           <View style={styles.grid}>

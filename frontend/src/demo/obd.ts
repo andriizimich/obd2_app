@@ -25,6 +25,8 @@ export type Fault = {
   severity: "low" | "medium" | "high";
 };
 
+import { buildDemoVin } from "@/src/utils/vin";
+
 const rand = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 const randInt = (min: number, max: number) =>
   Math.floor(Math.random() * (max - min + 1)) + min;
@@ -34,24 +36,23 @@ export const DEMO_DEVICES: ObdDevice[] = [
   { id: "d2", name: "Vgate iCar Pro BLE", address: "AC:9A:22:1F:04:7C", rssi: -67 },
 ];
 
-const VEHICLES: Omit<Vehicle, "vin" | "mileage">[] = [
-  { make: "Volkswagen", model: "Passat B8", year: 2018 },
-  { make: "BMW", model: "320i F30", year: 2016 },
-  { make: "Toyota", model: "Camry XV70", year: 2020 },
-  { make: "Audi", model: "A4 B9", year: 2019 },
-  { make: "Ford", model: "Focus Mk3", year: 2015 },
-  { make: "Mercedes-Benz", model: "C 200 W205", year: 2017 },
+// WMI is the real-world manufacturer code — demo VINs are built with a valid
+// check digit and decode consistently with the rest of the entry.
+const VEHICLES: (Omit<Vehicle, "vin" | "mileage"> & { wmi: string })[] = [
+  { make: "Volkswagen", model: "Passat B8", year: 2018, wmi: "WVW" },
+  { make: "BMW", model: "320i F30", year: 2016, wmi: "WBA" },
+  { make: "Toyota", model: "Camry XV70", year: 2020, wmi: "4T1" },
+  { make: "Audi", model: "A4 B9", year: 2019, wmi: "WAU" },
+  { make: "Ford", model: "Focus Mk3", year: 2015, wmi: "1FA" },
+  { make: "Mercedes-Benz", model: "C 200 W205", year: 2017, wmi: "WDD" },
 ];
-
-const VIN_CHARS = "ABCDEFGHJKLMNPRSTUVWXYZ0123456789";
-const genVin = (): string =>
-  Array.from({ length: 17 }, () => rand(VIN_CHARS.split(""))).join("");
 
 export const generateVehicle = (): Vehicle => {
   const base = rand(VEHICLES);
+  const { wmi, ...vehicle } = base;
   return {
-    ...base,
-    vin: genVin(),
+    ...vehicle,
+    vin: buildDemoVin(wmi, base.year),
     mileage: randInt(45_000, 235_000),
   };
 };
