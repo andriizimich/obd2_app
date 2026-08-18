@@ -13,8 +13,8 @@
 //     (or `<feature>-<element>-<qualifier>` when an element repeats). Examples:
 //     'login-submit-button', 'cart-quantity-input', 'product-card-image'.
 //
-// Why kebab-case values: required by qabot's CSS-attribute-style selector
-// matcher and the lint rule `emergent(kebab-case-testid-prop)`.
+// Why kebab-case values: required by the CSS-attribute-style selector
+// matcher used by the test tooling and its kebab-case-testid-prop lint rule.
 
 export const LOGIN = {
 	emailInput: 'login-email-input',
