@@ -23,7 +23,9 @@ import type { AdapterInfo, ObdTransport, VehicleInfo } from "@/src/obd/transport
 import { OdbConnectError, OdbScanError } from "@/src/obd/transport";
 import type { ObdDevice } from "@/src/obd/types";
 
-const SCAN_TIMEOUT_MS = 8000;
+// Cheap ELM327 clones sometimes advertise only every few seconds —
+// 12s gives them room without making the user wait forever.
+const SCAN_TIMEOUT_MS = 12000;
 const CONNECT_TIMEOUT_MS = 10000;
 
 // Service UUID hints advertised by common BLE ELM327 adapters.

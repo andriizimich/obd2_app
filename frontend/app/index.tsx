@@ -315,6 +315,19 @@ export default function ConnectScreen() {
 
           {phase === "found" && (
             <View style={styles.deviceList}>
+              {!devices.some((d) => d.obdHint) && (
+                <View style={styles.obdHintCard} testID="no-obd-hint">
+                  <MaterialCommunityIcons
+                    name="alert-circle-outline"
+                    size={16}
+                    color={colors.warning}
+                  />
+                  <Text style={styles.obdHintText}>
+                    Your OBD adapter is not in this list. Check that it's
+                    plugged in and the ignition is ON.
+                  </Text>
+                </View>
+              )}
               {devices.map((device) => (
                 <DeviceCard
                   key={device.id}
@@ -524,6 +537,23 @@ const styles = StyleSheet.create({
     width: "100%",
     gap: spacing.sm,
     marginTop: spacing.xl,
+  },
+  obdHintCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  obdHintText: {
+    flex: 1,
+    color: colors.warning,
+    fontFamily: font.regular,
+    fontSize: type.sm,
+    lineHeight: 18,
   },
   deviceCard: {
     flexDirection: "row",
