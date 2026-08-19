@@ -9,6 +9,7 @@
 
 import {
   BleManager,
+  ScanMode,
   type Characteristic,
   type Device,
   type Service,
@@ -68,11 +69,14 @@ function looksLikeObd(device: Device): boolean {
 }
 
 function toObdDevice(device: Device): ObdDevice {
+  const name = device.name || device.localName;
   return {
     id: device.id,
-    name: device.name || device.localName || "Unknown adapter",
+    name: name || "Unnamed device",
     address: device.id,
     rssi: device.rssi,
+    // Advertised name or service UUIDs match a known OBD adapter.
+    obdHint: looksLikeObd(device),
   };
 }
 
@@ -180,17 +184,34 @@ export class BleTransport implements ObdTransport {
     await ensureBleReady();
     const mgr = getManager();
 
+    // allowDuplicates: true is essential — with dedup on, Android often
+    // delivers only the FIRST advertisement of each device, and the
+    // device name usually arrives in a later packet. Without duplicates
+    // the list fills with unnamed entries and the OBD filter cannot work.
     const seen = new Map<string, Device>();
     let finished = false;
-    await mgr.startDeviceScan(null, { allowDuplicates: false }, (error, device) => {
-      if (error) {
-        // Scan errors (e.g. a race with the radio state) are surfaced at
-        // the end when the scan is empty; a single bad advertisement is
-        // not fatal.
-        return;
-      }
-      if (device?.id && !finished) seen.set(device.id, device);
-    });
+    await mgr.startDeviceScan(
+      null,
+      { allowDuplicates: true, scanMode: ScanMode.LowLatency },
+      (error, device) => {
+        if (error) {
+          // Scan errors (e.g. a race with the radio state) are surfaced at
+          // the end when the scan is empty; a single bad advertisement is
+          // not fatal.
+          return;
+        }
+        if (!device?.id || finished) return;
+        // Keep the richest advertisement per device: a packet with a
+        // name replaces a nameless one (or the first seen); never let a
+        // nameless duplicate overwrite a named entry.
+        const prev = seen.get(device.id);
+        const newName = device.name || device.localName;
+        const prevName = prev?.name || prev?.localName;
+        if (!prev || newName || !prevName) {
+          seen.set(device.id, device);
+        }
+      },
+    );
 
     await new Promise<void>((resolve) =>
       setTimeout(() => {
@@ -200,18 +221,22 @@ export class BleTransport implements ObdTransport {
     );
     await mgr.stopDeviceScan();
 
-    const devices = [...seen.values()];
-    const matches = devices.filter(looksLikeObd);
-    if (matches.length > 0) return matches.map(toObdDevice);
-    // The adapter may have a custom name — fall back to every device
-    // that advertised at least a name, capped to keep the list sane.
-    const named = devices.filter((d) => d.name || d.localName);
-    if (named.length > 0) return named.slice(0, 10).map(toObdDevice);
-    if (devices.length > 0) return devices.slice(0, 10).map(toObdDevice);
-    throw new OdbScanError(
-      "none-found",
-      "No Bluetooth OBD-II adapter detected.",
-    );
+    const byRssi = (a: Device, b: Device) => (b.rssi ?? -999) - (a.rssi ?? -999);
+    // Likely OBD adapters first (strongest signal on top), then other
+    // named devices so a custom-named adapter is still visible and
+    // selectable. Cap the list to keep it scannable.
+    const obd = [...seen.values()].filter(looksLikeObd).sort(byRssi);
+    const rest = [...seen.values()]
+      .filter((d) => !looksLikeObd(d))
+      .sort(byRssi);
+    const list = [...obd, ...rest].slice(0, 12);
+    if (list.length === 0) {
+      throw new OdbScanError(
+        "none-found",
+        "No Bluetooth OBD-II adapter detected.",
+      );
+    }
+    return list.map(toObdDevice);
   }
 
   async connect(device: ObdDevice): Promise<AdapterInfo> {

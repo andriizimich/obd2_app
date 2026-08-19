@@ -120,7 +120,16 @@ function DeviceCard({
         />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.deviceName}>{device.name}</Text>
+        <View style={styles.deviceNameRow}>
+          <Text style={styles.deviceName} numberOfLines={1}>
+            {device.name}
+          </Text>
+          {device.obdHint && (
+            <View style={styles.obdBadge} testID="obd-badge">
+              <Text style={styles.obdBadgeText}>OBD-II</Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.deviceAddr}>{device.address}</Text>
       </View>
       {device.rssi != null && (
@@ -536,10 +545,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  deviceNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
   deviceName: {
     color: colors.onSurface,
     fontFamily: font.semibold,
     fontSize: type.base,
+    flexShrink: 1,
+  },
+  obdBadge: {
+    backgroundColor: colors.brandTertiary,
+    borderWidth: 1,
+    borderColor: colors.brand,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  obdBadgeText: {
+    color: colors.brand,
+    fontFamily: font.semibold,
+    fontSize: 10,
+    letterSpacing: 0.5,
   },
   deviceAddr: {
     color: colors.onSurfaceTertiary,

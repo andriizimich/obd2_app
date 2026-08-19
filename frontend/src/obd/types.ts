@@ -8,6 +8,9 @@ export type ObdDevice = {
   /** MAC address for BLE devices; equal to id on iOS. */
   address: string;
   rssi: number | null;
+  /** Advertised name or service UUIDs match a known OBD adapter —
+   *  lets the UI badge likely OBD-II devices in the scan list. */
+  obdHint?: boolean;
 };
 
 /**
