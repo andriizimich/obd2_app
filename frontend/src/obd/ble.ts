@@ -26,7 +26,10 @@ import type { ObdDevice } from "@/src/obd/types";
 // Cheap ELM327 clones sometimes advertise only every few seconds —
 // 12s gives them room without making the user wait forever.
 const SCAN_TIMEOUT_MS = 12000;
-const CONNECT_TIMEOUT_MS = 10000;
+const CONNECT_TIMEOUT_MS = 15000;
+// Some clones need a moment after the GATT link is up before they answer
+// service discovery reliably.
+const POST_CONNECT_SETTLE_MS = 700;
 
 // Service UUID hints advertised by common BLE ELM327 adapters.
 const OBD_SERVICE_HINTS = ["fff0", "ffe0", "ffe5", "ff00", "ff10"];
@@ -98,11 +101,16 @@ async function ensureBleReady(): Promise<void> {
   }
 
   const api = Number(Platform.Version);
+  // Fine location is requested on ALL versions: on Android 12+ some OEM
+  // firmwares deliver scan results without device names unless the
+  // location grant exists (the "neverForLocation" flag was removed from
+  // app.json for the same reason).
   const perms =
     api >= 31
       ? [
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         ]
       : [
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
@@ -135,30 +143,37 @@ async function ensureBleReady(): Promise<void> {
   }
 }
 
-/** UART-like passthrough characteristic on the adapter. */
+/** UART-like passthrough on the adapter. Cheap clones come in two
+ *  flavors: a single characteristic that is both writable and notifiable
+ *  (HM-10 style), or a SPLIT pair — one characteristic for TX, one for RX. */
 type OdbChannel = {
   serviceUuid: string;
-  characteristic: Characteristic;
-  isWritableWithResponse: boolean;
+  write: Characteristic;
+  writeWithResponse: boolean;
+  notify: Characteristic;
 };
 
 async function pickChannel(services: Service[]): Promise<OdbChannel | null> {
   // Prefer services with a known OBD hint, then any service that looks
-  // like a serial passthrough (notifiable + writable characteristic).
+  // like a serial passthrough (one writable + one notifiable char).
   const isOdbService = (s: Service) =>
     OBD_SERVICE_HINTS.some((h) => s.uuid.toLowerCase().includes(h));
 
   const inspect = async (s: Service): Promise<OdbChannel | null> => {
     const characteristics = await s.characteristics();
-    for (const c of characteristics) {
-      const writable = c.isWritableWithResponse || c.isWritableWithoutResponse;
-      if (writable && (c.isNotifiable || c.isIndicatable)) {
-        return {
-          serviceUuid: s.uuid,
-          characteristic: c,
-          isWritableWithResponse: c.isWritableWithResponse,
-        };
-      }
+    const write =
+      characteristics.find((c) => c.isWritableWithResponse) ??
+      characteristics.find((c) => c.isWritableWithoutResponse);
+    const notify = characteristics.find(
+      (c) => c.isNotifiable || c.isIndicatable,
+    );
+    if (write && notify) {
+      return {
+        serviceUuid: s.uuid,
+        write,
+        writeWithResponse: write.isWritableWithResponse,
+        notify,
+      };
     }
     return null;
   };
@@ -245,11 +260,16 @@ export class BleTransport implements ObdTransport {
     await ensureBleReady();
     const mgr = getManager();
 
+    // No requestMTU: some clones break on large-MTU negotiation, and AT
+    // commands are tiny — the default MTU is plenty.
     const connected = await mgr.connectToDevice(device.id, {
-      requestMTU: 247,
       timeout: CONNECT_TIMEOUT_MS,
     });
     this.connected = connected;
+
+    // Cheap clones need a beat after the GATT link is up before they
+    // answer service discovery.
+    await new Promise((r) => setTimeout(r, POST_CONNECT_SETTLE_MS));
 
     await connected.discoverAllServicesAndCharacteristics();
     const services = await connected.services();
@@ -267,7 +287,7 @@ export class BleTransport implements ObdTransport {
     this.elm = elm;
     this.subscription = connected.monitorCharacteristicForService(
       channel.serviceUuid,
-      channel.characteristic.uuid,
+      channel.notify.uuid,
       (error, ch) => {
         if (error || !ch?.value) return;
         elm.feed(base64ToUtf8(ch.value));
@@ -338,13 +358,16 @@ export class BleTransport implements ObdTransport {
 
   /** ATZ reset + ATE0 (echo off) + ATI identification. */
   private async handshake(elm: Elm327Channel): Promise<string | null> {
-    // A freshly-powered clone often misses the first command — retry ATZ
-    // once before declaring the adapter unresponsive.
+    // Freshly-powered clones often miss the first command — retry ATZ a
+    // few times with a short gap before declaring it unresponsive.
     let reset: string[] = [];
-    try {
-      reset = await elm.command("ATZ", 6000);
-    } catch {
-      reset = await elm.command("ATZ", 6000);
+    for (let attempt = 0; attempt < 3 && reset.length === 0; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 800));
+      try {
+        reset = await elm.command("ATZ", 6000);
+      } catch {
+        reset = [];
+      }
     }
     if (reset.length === 0) {
       await this.disconnect();
@@ -377,16 +400,16 @@ export class BleTransport implements ObdTransport {
       throw new OdbConnectError("disconnected", "Adapter is not connected.");
     }
     const payload = encodeCommand(raw);
-    if (channel.isWritableWithResponse) {
+    if (channel.writeWithResponse) {
       await device.writeCharacteristicWithResponseForService(
         channel.serviceUuid,
-        channel.characteristic.uuid,
+        channel.write.uuid,
         payload,
       );
     } else {
       await device.writeCharacteristicWithoutResponseForService(
         channel.serviceUuid,
-        channel.characteristic.uuid,
+        channel.write.uuid,
         payload,
       );
     }
