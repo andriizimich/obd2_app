@@ -2,15 +2,14 @@
 // Kept free of any transport-specific fields.
 
 export type ObdDevice = {
-  /** Unique identifier. For BLE this is the peripheral id (Android MAC-style / iOS uuid). */
+  /** Unique identifier (BLE peripheral id or classic MAC address). */
   id: string;
   name: string;
-  /** MAC address for BLE devices; equal to id on iOS. */
+  /** MAC address; equal to id for BLE devices on iOS. */
   address: string;
   rssi: number | null;
-  /** Advertised name or service UUIDs match a known OBD adapter —
-   *  lets the UI badge likely OBD-II devices in the scan list. */
-  obdHint?: boolean;
+  /** Which transport can talk to this device (internal — not shown). */
+  kind?: "ble" | "classic";
 };
 
 /**

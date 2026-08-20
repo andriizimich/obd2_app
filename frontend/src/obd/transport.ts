@@ -6,7 +6,7 @@
 
 import type { ObdDevice, Vehicle } from "@/src/obd/types";
 
-export type OdbMode = "demo" | "ble";
+export type OdbMode = "demo" | "real";
 
 /** Result of a successful adapter handshake. */
 export type AdapterInfo = {

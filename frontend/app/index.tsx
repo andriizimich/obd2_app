@@ -100,46 +100,30 @@ function DeviceCard({
   device,
   onPress,
   disabled,
-  failed,
 }: {
   device: ObdDevice;
   onPress?: () => void;
   disabled?: boolean;
-  failed?: boolean;
 }) {
   return (
     <Pressable
       testID={`device-card-${device.id}`}
       onPress={onPress}
       disabled={disabled}
-      style={({ pressed }) => [
-        styles.deviceCard,
-        failed && styles.deviceCardFailed,
-        pressed && styles.deviceCardPressed,
-      ]}
+      style={({ pressed }) => [styles.deviceCard, pressed && styles.deviceCardPressed]}
     >
       <View style={styles.deviceIcon}>
         <MaterialCommunityIcons
           name="access-point"
           size={22}
-          color={failed ? colors.error : colors.brand}
+          color={colors.brand}
         />
       </View>
       <View style={{ flex: 1 }}>
-        <View style={styles.deviceNameRow}>
-          <Text style={styles.deviceName} numberOfLines={1}>
-            {device.name}
-          </Text>
-          {device.obdHint && (
-            <View style={styles.obdBadge} testID="obd-badge">
-              <Text style={styles.obdBadgeText}>OBD-II</Text>
-            </View>
-          )}
-        </View>
+        <Text style={styles.deviceName} numberOfLines={1}>
+          {device.name}
+        </Text>
         <Text style={styles.deviceAddr}>{device.address}</Text>
-        {failed && (
-          <Text style={styles.deviceFailNote}>No ELM327 response — not an OBD adapter</Text>
-        )}
       </View>
       {device.rssi != null && (
         <View style={styles.signal}>
@@ -172,9 +156,8 @@ export default function ConnectScreen() {
   const [devices, setDevices] = useState<ObdDevice[]>([]);
   const [connectingTo, setConnectingTo] = useState<ObdDevice | null>(null);
   const [errorKind, setErrorKind] = useState<ErrorKind | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const [demoUnplugged, setDemoUnplugged] = useState(false);
-  // Devices that connected but did not answer the ELM327 handshake.
-  const [failedIds, setFailedIds] = useState<string[]>([]);
 
   // Restore the last used mode; demo stays the default for development.
   useEffect(() => {
@@ -191,11 +174,11 @@ export default function ConnectScreen() {
     setDevices([]);
     setConnectingTo(null);
     setErrorKind(null);
-    setFailedIds([]);
+    setConnectError(null);
   }, []);
 
   const toggleMode = (demo: boolean) => {
-    const next: OdbMode = demo ? "demo" : "ble";
+    const next: OdbMode = demo ? "demo" : "real";
     setMode(next);
     saveMode(next);
     reset();
@@ -223,27 +206,28 @@ export default function ConnectScreen() {
     }
   };
 
-  /**
-   * Connect + ELM327 handshake. Returns true when the device answers as
-   * an ELM327 — that is the definitive test for "is this the adapter",
-   * since cheap clones often advertise no name at all.
-   */
-  const tryConnect = async (device: ObdDevice): Promise<boolean> => {
+  const doConnect = async (device: ObdDevice) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPhase("connecting");
+    setConnectingTo(device);
+    setConnectError(null);
     const transport = getTransport(mode);
     try {
-      // Real BLE mode verifies the ELM327 handshake (ATZ + ATI) here;
+      // Real transports verify the ELM327 handshake (ATZ + ATI) here;
       // demo mode just simulates the delay.
       await transport.connect(device);
-    } catch {
+    } catch (e) {
       transport.disconnect();
-      setFailedIds((ids) => [...ids, device.id]);
-      return false;
+      // Back to the list with a plain message — the user picks another
+      // device instead of restarting the whole search.
+      setConnectError(
+        e instanceof Error ? e.message : "Connection failed. Try another device.",
+      );
+      setPhase("found");
+      setConnectingTo(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
     }
-    return true;
-  };
-
-  const finishConnection = async (device: ObdDevice) => {
-    const transport = getTransport(mode);
     // Identify the vehicle: mode 09 read (VIN/CALID/ECU name/protocol),
     // vPIC decode and consistency checks. Failing this step must not
     // block the connection — the dashboard shows the warnings instead.
@@ -256,52 +240,6 @@ export default function ConnectScreen() {
     connect(device, identification);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.replace("/(tabs)/dashboard");
-  };
-
-  const doConnect = async (device: ObdDevice) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setPhase("connecting");
-    setConnectingTo(device);
-    const ok = await tryConnect(device);
-    if (!ok) {
-      // Back to the list — the failed card is marked, the user can pick
-      // another device instead of restarting the whole search.
-      setPhase("found");
-      setConnectingTo(null);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      return;
-    }
-    await finishConnection(device);
-  };
-
-  /**
-   * The adapter advertises no name: probe the unnamed devices one by one
-   * until one answers the ELM327 handshake.
-   */
-  const autoDetect = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const candidates = devices.filter(
-      (d) => d.name === "Unnamed device" && !failedIds.includes(d.id),
-    );
-    if (candidates.length === 0) {
-      setErrorKind("none-found");
-      setPhase("error");
-      return;
-    }
-    for (const device of candidates) {
-      setPhase("connecting");
-      setConnectingTo(device);
-      const ok = await tryConnect(device);
-      if (ok) {
-        await finishConnection(device);
-        return;
-      }
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
-    // Every candidate failed the handshake.
-    setPhase("error");
-    setConnectingTo(null);
-    setErrorKind("handshake");
   };
 
   const retry = reset;
@@ -379,26 +317,16 @@ export default function ConnectScreen() {
 
           {phase === "found" && (
             <View style={styles.deviceList}>
-              {!devices.some((d) => d.obdHint) && (
-                <View style={styles.obdHintCard} testID="no-obd-hint">
-                  <MaterialCommunityIcons
-                    name="alert-circle-outline"
-                    size={16}
-                    color={colors.warning}
-                  />
-                  <Text style={styles.obdHintText}>
-                    {devices.some((d) => d.name === "Unnamed device")
-                      ? "Your adapter may be one of the unnamed devices — tap it, or use auto-detect."
-                      : "Your OBD adapter is not in this list. Check that it's plugged in and the ignition is ON."}
-                  </Text>
-                </View>
-              )}
+              {connectError ? (
+                <Text style={styles.connectError} testID="connect-error">
+                  {connectError}
+                </Text>
+              ) : null}
               {devices.map((device) => (
                 <DeviceCard
                   key={device.id}
                   device={device}
                   onPress={() => doConnect(device)}
-                  failed={failedIds.includes(device.id)}
                 />
               ))}
             </View>
@@ -470,16 +398,6 @@ export default function ConnectScreen() {
               onPress={startSearch}
             />
           )}
-          {phase === "found" &&
-            !devices.some((d) => d.obdHint) &&
-            devices.some((d) => d.name === "Unnamed device" && !failedIds.includes(d.id)) && (
-              <NeonButton
-                testID="autodetect-button"
-                label="Auto-detect adapter"
-                icon="radar"
-                onPress={autoDetect}
-              />
-            )}
           {phase === "scanning" && (
             <NeonButton
               testID="scanning-button"
@@ -545,6 +463,7 @@ function errorText(kind: ErrorKind | null): { sub: string; tips: string[] } {
         tips: [
           "Keep the phone close to the adapter and retry.",
           "Re-plug the adapter into the OBD-II port.",
+          "If Android asks for a pairing PIN, try 1234 or 0000.",
         ],
       };
     default:
@@ -614,21 +533,11 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.xl,
   },
-  obdHintCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.sm,
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: colors.warning,
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
-  obdHintText: {
-    flex: 1,
-    color: colors.warning,
+  connectError: {
+    color: colors.error,
     fontFamily: font.regular,
     fontSize: type.sm,
+    textAlign: "center",
     lineHeight: 18,
   },
   deviceCard: {
@@ -643,13 +552,6 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   deviceCardPressed: { opacity: 0.65 },
-  deviceCardFailed: { borderColor: colors.error },
-  deviceFailNote: {
-    color: colors.error,
-    fontFamily: font.regular,
-    fontSize: type.sm,
-    marginTop: 2,
-  },
   deviceIcon: {
     width: 44,
     height: 44,
@@ -658,30 +560,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  deviceNameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
   deviceName: {
     color: colors.onSurface,
     fontFamily: font.semibold,
     fontSize: type.base,
     flexShrink: 1,
-  },
-  obdBadge: {
-    backgroundColor: colors.brandTertiary,
-    borderWidth: 1,
-    borderColor: colors.brand,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-  },
-  obdBadgeText: {
-    color: colors.brand,
-    fontFamily: font.semibold,
-    fontSize: 10,
-    letterSpacing: 0.5,
   },
   deviceAddr: {
     color: colors.onSurfaceTertiary,

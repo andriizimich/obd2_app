@@ -9,6 +9,8 @@
 // so data must be parsed leniently.
 
 import type { Elm327Channel } from "@/src/obd/at";
+import type { AdapterInfo, VehicleInfo } from "@/src/obd/transport";
+import { OdbConnectError } from "@/src/obd/transport";
 
 // ELM327 ATDPN result → human-readable OBD protocol.
 export const PROTOCOL_NAMES: Record<string, string> = {
@@ -110,4 +112,87 @@ export async function readEcuName(
   const block = extractMode49(extractBytes(lines), 0x0a);
   if (!block) return null;
   return ascii(block.data).trim() || null;
+}
+
+/**
+ * ELM327 handshake over any transport channel (BLE or classic): ATZ reset
+ * with retries, ATE0 (echo off), ATI identification. Throws
+ * OdbConnectError when the device does not answer — that is how we tell
+ * the adapter apart from other Bluetooth devices.
+ */
+export async function elm327Handshake(
+  elm: Elm327Channel,
+): Promise<AdapterInfo> {
+  // Freshly-powered clones often miss the first command — retry ATZ a
+  // few times with a short gap before declaring it unresponsive.
+  let reset: string[] = [];
+  for (let attempt = 0; attempt < 3 && reset.length === 0; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 800));
+    try {
+      reset = await elm.command("ATZ", 6000);
+    } catch {
+      reset = [];
+    }
+  }
+  if (reset.length === 0) {
+    throw new OdbConnectError(
+      "handshake",
+      "The device did not answer as an ELM327 OBD adapter.",
+    );
+  }
+
+  // Echo off; from here responses are clean single lines.
+  try {
+    await elm.command("ATE0", 2000);
+  } catch {
+    // Not fatal — clones differ.
+  }
+
+  let idLines: string[] = [];
+  try {
+    idLines = await elm.command("ATI", 3000);
+  } catch {
+    // Identification is best-effort.
+  }
+  return { adapterId: idLines.length > 0 ? idLines.join(" / ") : null };
+}
+
+/** Best-effort vehicle reads (mode 09) shared by both transports. */
+export async function readVehicleInfoOver(
+  elm: Elm327Channel,
+): Promise<Omit<VehicleInfo, "vehicle">> {
+  // Ask the adapter to join multi-frame replies into one line; the
+  // parser handles multi-line responses anyway, so a "?" is harmless.
+  try {
+    await elm.command("ATAL", 2000);
+  } catch {
+    // Clone doesn't support ATAL — multi-line parsing takes over.
+  }
+
+  // Every read is best-effort: one unsupported PID must not lose the rest.
+  let protocol: string | null = null;
+  try {
+    protocol = await readProtocol(elm);
+  } catch {
+    // ignore
+  }
+  let vin: string | null = null;
+  try {
+    vin = await readVin(elm);
+  } catch {
+    // ignore
+  }
+  let calid: string[] = [];
+  try {
+    calid = await readCalid(elm);
+  } catch {
+    // ignore
+  }
+  let ecuName: string | null = null;
+  try {
+    ecuName = await readEcuName(elm);
+  } catch {
+    // ignore
+  }
+  return { vin, calid, ecuName, protocol };
 }

@@ -18,7 +18,10 @@ import {
 import { PermissionsAndroid, Platform } from "react-native";
 
 import { Elm327Channel } from "@/src/obd/at";
-import { readCalid, readEcuName, readProtocol, readVin } from "@/src/obd/mode09";
+import {
+  elm327Handshake,
+  readVehicleInfoOver,
+} from "@/src/obd/mode09";
 import type { AdapterInfo, ObdTransport, VehicleInfo } from "@/src/obd/transport";
 import { OdbConnectError, OdbScanError } from "@/src/obd/transport";
 import type { ObdDevice } from "@/src/obd/types";
@@ -31,20 +34,9 @@ const CONNECT_TIMEOUT_MS = 15000;
 // service discovery reliably.
 const POST_CONNECT_SETTLE_MS = 700;
 
-// Service UUID hints advertised by common BLE ELM327 adapters.
+// Service UUID hints advertised by common BLE ELM327 adapters — used only
+// to pick the serial channel AFTER connecting, never to filter the list.
 const OBD_SERVICE_HINTS = ["fff0", "ffe0", "ffe5", "ff00", "ff10"];
-// Advertised-name hints for common adapters.
-const OBD_NAME_HINTS = [
-  /obd/i,
-  /elm/i,
-  /icar/i,
-  /vlinker/i,
-  /viecar/i,
-  /vgate/i,
-  /carpro/i,
-  /kw902/i,
-  /scan/i,
-];
 
 let manager: BleManager | null = null;
 
@@ -66,13 +58,6 @@ function encodeCommand(raw: string): string {
   return btoa(raw);
 }
 
-function looksLikeObd(device: Device): boolean {
-  const name = (device.name || device.localName || "").toLowerCase();
-  if (OBD_NAME_HINTS.some((re) => re.test(name))) return true;
-  const uuids = (device.serviceUUIDs || []).map((u) => u.toLowerCase());
-  return uuids.some((u) => OBD_SERVICE_HINTS.some((h) => u.includes(h)));
-}
-
 function toObdDevice(device: Device): ObdDevice {
   const name = device.name || device.localName;
   return {
@@ -80,8 +65,7 @@ function toObdDevice(device: Device): ObdDevice {
     name: name || "Unnamed device",
     address: device.id,
     rssi: device.rssi,
-    // Advertised name or service UUIDs match a known OBD adapter.
-    obdHint: looksLikeObd(device),
+    kind: "ble",
   };
 }
 
@@ -90,7 +74,7 @@ function toObdDevice(device: Device): ObdDevice {
  * older: location, which BLE scanning piggybacks on) and make sure the
  * Bluetooth radio is on.
  */
-async function ensureBleReady(): Promise<void> {
+export async function ensureBleReady(): Promise<void> {
   if (Platform.OS === "ios") {
     const state = await getManager().state();
     if (state !== "PoweredOn") throw new OdbScanError("bluetooth-off", "Bluetooth is turned off.");
@@ -190,7 +174,7 @@ async function pickChannel(services: Service[]): Promise<OdbChannel | null> {
 }
 
 export class BleTransport implements ObdTransport {
-  readonly mode = "ble" as const;
+  readonly mode = "real" as const;
 
   private connected: Device | null = null;
   private channel: OdbChannel | null = null;
@@ -238,19 +222,14 @@ export class BleTransport implements ObdTransport {
     );
     await mgr.stopDeviceScan();
 
+    // Plain list of everything found, strongest signal first — no
+    // guessing which device is the adapter; the user picks.
     const byRssi = (a: Device, b: Device) => (b.rssi ?? -999) - (a.rssi ?? -999);
-    // Likely OBD adapters first (strongest signal on top), then other
-    // named devices so a custom-named adapter is still visible and
-    // selectable. Cap the list to keep it scannable.
-    const obd = [...seen.values()].filter(looksLikeObd).sort(byRssi);
-    const rest = [...seen.values()]
-      .filter((d) => !looksLikeObd(d))
-      .sort(byRssi);
-    const list = [...obd, ...rest].slice(0, 12);
+    const list = [...seen.values()].sort(byRssi).slice(0, 30);
     if (list.length === 0) {
       throw new OdbScanError(
         "none-found",
-        "No Bluetooth OBD-II adapter detected.",
+        "No Bluetooth devices found.",
       );
     }
     return list.map(toObdDevice);
@@ -294,8 +273,7 @@ export class BleTransport implements ObdTransport {
       },
     );
 
-    const adapterId = await this.handshake(elm);
-    return { adapterId };
+    return elm327Handshake(elm);
   }
 
   async readVehicleInfo(): Promise<VehicleInfo> {
@@ -303,40 +281,7 @@ export class BleTransport implements ObdTransport {
     if (!elm || !this.connected) {
       throw new OdbConnectError("disconnected", "Adapter is not connected.");
     }
-    // Ask the adapter to join multi-frame replies into one line; the
-    // parser handles multi-line responses anyway, so a "?" is harmless.
-    try {
-      await elm.command("ATAL", 2000);
-    } catch {
-      // Clone doesn't support ATAL — multi-line parsing takes over.
-    }
-
-    // Every read is best-effort: one unsupported PID must not lose the rest.
-    let protocol: string | null = null;
-    try {
-      protocol = await readProtocol(elm);
-    } catch {
-      // ignore
-    }
-    let vin: string | null = null;
-    try {
-      vin = await readVin(elm);
-    } catch {
-      // ignore
-    }
-    let calid: string[] = [];
-    try {
-      calid = await readCalid(elm);
-    } catch {
-      // ignore
-    }
-    let ecuName: string | null = null;
-    try {
-      ecuName = await readEcuName(elm);
-    } catch {
-      // ignore
-    }
-    return { vin, calid, ecuName, protocol };
+    return readVehicleInfoOver(elm);
   }
 
   disconnect(): void {
@@ -354,43 +299,6 @@ export class BleTransport implements ObdTransport {
     if (device) {
       getManager().cancelDeviceConnection(device.id).catch(() => {});
     }
-  }
-
-  /** ATZ reset + ATE0 (echo off) + ATI identification. */
-  private async handshake(elm: Elm327Channel): Promise<string | null> {
-    // Freshly-powered clones often miss the first command — retry ATZ a
-    // few times with a short gap before declaring it unresponsive.
-    let reset: string[] = [];
-    for (let attempt = 0; attempt < 3 && reset.length === 0; attempt++) {
-      if (attempt > 0) await new Promise((r) => setTimeout(r, 800));
-      try {
-        reset = await elm.command("ATZ", 6000);
-      } catch {
-        reset = [];
-      }
-    }
-    if (reset.length === 0) {
-      await this.disconnect();
-      throw new OdbConnectError(
-        "handshake",
-        "Adapter did not answer ATZ — is it an ELM327?",
-      );
-    }
-
-    // Echo off; from here responses are clean single lines.
-    try {
-      await elm.command("ATE0", 2000);
-    } catch {
-      // Not fatal — clones differ.
-    }
-
-    let idLines: string[] = [];
-    try {
-      idLines = await elm.command("ATI", 3000);
-    } catch {
-      // Not fatal either — identification is best-effort.
-    }
-    return idLines.length > 0 ? idLines.join(" / ") : null;
   }
 
   private async write(raw: string): Promise<void> {

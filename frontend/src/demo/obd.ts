@@ -15,8 +15,8 @@ const randInt = (min: number, max: number) =>
   Math.floor(Math.random() * (max - min + 1)) + min;
 
 export const DEMO_DEVICES: ObdDevice[] = [
-  { id: "d1", name: "OBDII ELM327 v1.5", address: "00:1D:A5:68:98:8B", rssi: -52, obdHint: true },
-  { id: "d2", name: "Vgate iCar Pro BLE", address: "AC:9A:22:1F:04:7C", rssi: -67, obdHint: true },
+  { id: "d1", name: "OBDII ELM327 v1.5", address: "00:1D:A5:68:98:8B", rssi: -52 },
+  { id: "d2", name: "Vgate iCar Pro BLE", address: "AC:9A:22:1F:04:7C", rssi: -67 },
 ];
 
 // WMI is the real-world manufacturer code — demo VINs are built with a valid

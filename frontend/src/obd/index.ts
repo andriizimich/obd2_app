@@ -4,8 +4,8 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { getBleTransport } from "@/src/obd/ble";
 import { DemoTransport } from "@/src/obd/demo";
+import { RealTransport } from "@/src/obd/real";
 import type { OdbMode, ObdTransport } from "@/src/obd/transport";
 
 const MODE_KEY = "obd.mode.v1";
@@ -13,7 +13,8 @@ const MODE_KEY = "obd.mode.v1";
 export async function loadMode(): Promise<OdbMode> {
   try {
     const saved = await AsyncStorage.getItem(MODE_KEY);
-    return saved === "ble" ? "ble" : "demo";
+    // "ble" was the pre-classic value — both mean real hardware.
+    return saved === "ble" || saved === "real" ? "real" : "demo";
   } catch {
     return "demo";
   }
@@ -34,6 +35,10 @@ export function getDemoTransport(): DemoTransport {
   return demoTransport;
 }
 
+let realTransport: RealTransport | null = null;
+
 export function getTransport(mode: OdbMode): ObdTransport {
-  return mode === "ble" ? getBleTransport() : getDemoTransport();
+  if (mode === "demo") return getDemoTransport();
+  if (!realTransport) realTransport = new RealTransport();
+  return realTransport;
 }
