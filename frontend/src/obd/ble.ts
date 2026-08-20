@@ -84,17 +84,35 @@ export async function ensureBleReady(): Promise<void> {
     throw new OdbScanError("unsupported", "BLE is only supported on iOS and Android.");
   }
 
+  const mgr = getManager();
+
+  // Bluetooth first: prompt to turn it on BEFORE anything else (including
+  // runtime permissions) — no point asking for permissions for a scan
+  // that could not run anyway.
+  const state = await mgr.state();
+  if (state !== "PoweredOn") {
+    // Shows the system "turn Bluetooth on?" dialog on Android.
+    try {
+      await mgr.enable();
+    } catch {
+      throw new OdbScanError("bluetooth-off", "Bluetooth is turned off.");
+    }
+    const after = await mgr.state();
+    if (after !== "PoweredOn") {
+      throw new OdbScanError("bluetooth-off", "Bluetooth is turned off.");
+    }
+  }
+
+  // Runtime permissions. Location is NOT requested on Android 12+:
+  // BLUETOOTH_SCAN + BLUETOOTH_CONNECT fully cover BLE scanning there.
+  // Below API 31 Google requires fine location for BLE scans, so it
+  // stays for those old devices only.
   const api = Number(Platform.Version);
-  // Fine location is requested on ALL versions: on Android 12+ some OEM
-  // firmwares deliver scan results without device names unless the
-  // location grant exists (the "neverForLocation" flag was removed from
-  // app.json for the same reason).
   const perms =
     api >= 31
       ? [
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         ]
       : [
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
@@ -109,21 +127,6 @@ export async function ensureBleReady(): Promise<void> {
       "permission-denied",
       "Bluetooth permission is required to find OBD-II adapters.",
     );
-  }
-
-  const mgr = getManager();
-  const state = await mgr.state();
-  if (state !== "PoweredOn") {
-    // Shows the system "turn Bluetooth on?" dialog on Android.
-    try {
-      await mgr.enable();
-    } catch {
-      throw new OdbScanError("bluetooth-off", "Bluetooth is turned off.");
-    }
-    const after = await mgr.state();
-    if (after !== "PoweredOn") {
-      throw new OdbScanError("bluetooth-off", "Bluetooth is turned off.");
-    }
   }
 }
 
