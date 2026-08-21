@@ -9,6 +9,7 @@ import {
   Animated,
   Easing,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -158,6 +159,9 @@ export default function ConnectScreen() {
   const [errorKind, setErrorKind] = useState<ErrorKind | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [demoUnplugged, setDemoUnplugged] = useState(false);
+  // Unnamed devices (MAC-only) are collapsed under one row — named
+  // devices stay a plain list.
+  const [showUnnamed, setShowUnnamed] = useState(false);
 
   // Restore the last used mode; demo stays the default for development.
   useEffect(() => {
@@ -187,6 +191,9 @@ export default function ConnectScreen() {
   const startSearch = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setPhase("scanning");
+    // Fresh search — clear the previous results right away.
+    setDevices([]);
+    setConnectError(null);
     const transport = getTransport(mode);
     const activeMode = mode;
     try {
@@ -243,6 +250,8 @@ export default function ConnectScreen() {
   };
 
   const retry = reset;
+
+  const unnamedDevices = devices.filter((d) => d.name === "Unnamed device");
 
   const statusColor = phase === "error" ? colors.error : colors.brand;
 
@@ -316,20 +325,53 @@ export default function ConnectScreen() {
           <Text style={styles.sub}>{sub}</Text>
 
           {phase === "found" && (
-            <View style={styles.deviceList}>
+            <ScrollView
+              style={styles.deviceListScroll}
+              contentContainerStyle={styles.deviceList}
+              showsVerticalScrollIndicator={false}
+              testID="device-list"
+            >
               {connectError ? (
                 <Text style={styles.connectError} testID="connect-error">
                   {connectError}
                 </Text>
               ) : null}
-              {devices.map((device) => (
-                <DeviceCard
-                  key={device.id}
-                  device={device}
-                  onPress={() => doConnect(device)}
-                />
-              ))}
-            </View>
+              {devices
+                .filter((d) => d.name !== "Unnamed device")
+                .map((device) => (
+                  <DeviceCard
+                    key={device.id}
+                    device={device}
+                    onPress={() => doConnect(device)}
+                  />
+                ))}
+              {unnamedDevices.length > 0 && (
+                <>
+                  <Pressable
+                    style={styles.unnamedHeader}
+                    onPress={() => setShowUnnamed((v) => !v)}
+                    testID="unnamed-toggle"
+                  >
+                    <MaterialCommunityIcons
+                      name={showUnnamed ? "chevron-down" : "chevron-right"}
+                      size={18}
+                      color={colors.onSurfaceTertiary}
+                    />
+                    <Text style={styles.unnamedHeaderText}>
+                      Unnamed devices ({unnamedDevices.length})
+                    </Text>
+                  </Pressable>
+                  {showUnnamed &&
+                    unnamedDevices.map((device) => (
+                      <DeviceCard
+                        key={device.id}
+                        device={device}
+                        onPress={() => doConnect(device)}
+                      />
+                    ))}
+                </>
+              )}
+            </ScrollView>
           )}
 
           {phase === "connecting" && connectingTo && (
@@ -395,6 +437,15 @@ export default function ConnectScreen() {
               testID="search-button"
               label="Search for OBD device"
               icon="magnify"
+              onPress={startSearch}
+            />
+          )}
+          {phase === "found" && (
+            <NeonButton
+              testID="search-again-button"
+              label="Search again"
+              icon="refresh"
+              variant="secondary"
               onPress={startSearch}
             />
           )}
@@ -528,10 +579,28 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     paddingHorizontal: spacing.md,
   },
-  deviceList: {
+  deviceListScroll: {
     width: "100%",
-    gap: spacing.sm,
+    maxHeight: 280,
     marginTop: spacing.xl,
+  },
+  deviceList: {
+    gap: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  unnamedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: radius.md,
+  },
+  unnamedHeaderText: {
+    color: colors.onSurfaceTertiary,
+    fontFamily: font.semibold,
+    fontSize: type.sm,
   },
   connectError: {
     color: colors.error,

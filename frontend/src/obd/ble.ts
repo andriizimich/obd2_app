@@ -103,12 +103,11 @@ export async function ensureBleReady(): Promise<void> {
     }
   }
 
-  // Runtime permissions. Location is NOT requested on Android 12+:
-  // BLUETOOTH_SCAN + BLUETOOTH_CONNECT fully cover BLE scanning there.
-  // Below API 31 Google requires fine location for BLE scans, so it
-  // stays for those old devices only.
+  // Runtime permissions. Bluetooth permissions are REQUIRED on Android 12+.
+  // Below API 31 Google requires fine location for BLE scans, so it goes
+  // into the required set for those old devices.
   const api = Number(Platform.Version);
-  const perms =
+  const required =
     api >= 31
       ? [
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
@@ -118,8 +117,8 @@ export async function ensureBleReady(): Promise<void> {
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
           PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
         ];
-  const result = await PermissionsAndroid.requestMultiple(perms);
-  const denied = perms.filter(
+  const result = await PermissionsAndroid.requestMultiple(required);
+  const denied = required.filter(
     (p) => result[p] !== PermissionsAndroid.RESULTS.GRANTED,
   );
   if (denied.length > 0) {
@@ -127,6 +126,21 @@ export async function ensureBleReady(): Promise<void> {
       "permission-denied",
       "Bluetooth permission is required to find OBD-II adapters.",
     );
+  }
+
+  // Best-effort location on Android 12+: the OS does not require it, but
+  // some OEM firmwares withhold BLE device NAMES from scan results unless
+  // the location grant exists (this is why other apps show names and we
+  // saw MAC-only floods). Scanning proceeds either way — denying it may
+  // leave some devices unnamed.
+  if (api >= 31) {
+    try {
+      await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      );
+    } catch {
+      // Optional — never block the scan on this.
+    }
   }
 }
 
