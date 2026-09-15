@@ -9,6 +9,27 @@ const DEFAULT_TIMEOUT_MS = 4000;
 // without the trailing ">" prompt (single-line replies like ATI have none).
 const SETTLE_MS = 300;
 
+const HEX_TOKEN = /^[0-9a-f]{2}$/i;
+
+/**
+ * Pull every byte token out of raw ELM lines. Frame counters ("014"), the
+ * `0:`/`1:` multi-line index prefixes and CAN headers all vanish here: the
+ * counter and the header are not 2-hex tokens, and the index prefix is
+ * consumed by the `[\s:]+` split. The result is still a flat byte soup —
+ * callers must anchor on their own service byte rather than trust offsets.
+ *
+ * Lives here because both mode 09 and mode 01 readers need it, and mode 09
+ * must be able to import mode 01 without a cycle.
+ */
+export function extractBytes(lines: string[]): number[] {
+  const out: number[] = [];
+  for (const line of lines) {
+    const tokens = line.split(/[\s:]+/).filter((t) => HEX_TOKEN.test(t));
+    for (const t of tokens) out.push(parseInt(t, 16));
+  }
+  return out;
+}
+
 type Pending = {
   /** Trimmed command text, used to detect and strip the echo line. */
   command: string;
@@ -51,7 +72,16 @@ export class Elm327Channel {
       const settle = setTimeout(() => this.finish(), SETTLE_MS);
       this.pending = { command: raw.trim(), resolve, reject, lines: [], settle, timeout };
     });
-    await this.send(raw);
+    try {
+      await this.send(raw);
+    } catch (err) {
+      // A failed write must not leave the channel wedged. Without this the
+      // in-flight slot stays occupied and every later command is refused
+      // with "already in flight" — so one bad BLE write during a scan reads
+      // as a dead adapter until the user reconnects.
+      const failure = err instanceof Error ? err : new Error(String(err));
+      this.clearPending()?.reject(failure);
+    }
     return promise;
   }
 
@@ -100,10 +130,15 @@ export class Elm327Channel {
     resolve(lines);
   }
 
-  private clearPending(): void {
-    if (!this.pending) return;
-    clearTimeout(this.pending.settle);
-    clearTimeout(this.pending.timeout);
+  /** Drop the in-flight slot and hand it back, so a caller that means to
+   *  settle it (rather than just abandon it) does not have to read the field
+   *  again. */
+  private clearPending(): Pending | null {
+    if (!this.pending) return null;
+    const pending = this.pending;
+    clearTimeout(pending.settle);
+    clearTimeout(pending.timeout);
     this.pending = null;
+    return pending;
   }
 }

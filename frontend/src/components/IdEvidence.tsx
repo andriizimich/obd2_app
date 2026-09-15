@@ -6,7 +6,7 @@ import type { IdentificationEvidence } from "@/src/obd/types";
 import { colors, font, radius, spacing, type } from "@/src/theme";
 
 // Compact summary of how the vehicle was identified — the basis of the
-// validation score. Shows the evidence sources (protocol, CALID, ECU name)
+// validation score. Shows what the ECU answered (protocol, CALID, ECU name)
 // and every consistency warning the pipeline produced.
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -24,18 +24,10 @@ export default function IdEvidence({ evidence }: { evidence: IdentificationEvide
   return (
     <View style={styles.card} testID="id-evidence">
       <View style={styles.header}>
-        <MaterialCommunityIcons
-          name={evidence.source === "ecu" ? "car-cog" : "flask-outline"}
-          size={16}
-          color={evidence.source === "ecu" ? colors.success : colors.brand}
-        />
+        <MaterialCommunityIcons name="car-cog" size={16} color={colors.success} />
         <Text style={styles.title}>Identification evidence</Text>
       </View>
 
-      <Row
-        label="Source"
-        value={evidence.source === "ecu" ? "Read from ECU (adapter)" : "Demo simulation"}
-      />
       <Row label="Protocol" value={evidence.protocol ?? ""} />
       <Row label="CALID" value={evidence.calid.join(", ") || ""} />
       <Row label="ECU" value={evidence.ecuName ?? ""} />

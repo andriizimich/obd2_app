@@ -73,3 +73,15 @@ export const groupColor = (group: string): string => {
   const g = group.toLowerCase();
   return (colors as Record<string, string>)[g] ?? colors.brand;
 };
+
+/** Human label for a fault group, keyed by the same strings `groupColor`
+ *  resolves. Unknown keys fall back to the raw group in the caller. */
+export const GROUP_LABELS: Record<string, string> = {
+  engine: "Engine",
+  transmission: "Transmission",
+  lights: "Lights",
+  brakes: "Brakes",
+  emissions: "Emissions",
+  electrical: "Electrical",
+  body: "Body",
+};

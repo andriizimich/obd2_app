@@ -1,4 +1,4 @@
-import type { Fault, Vehicle } from "@/src/demo/obd";
+import type { Fault, Vehicle } from "@/src/obd/types";
 
 const BASE = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api`;
 

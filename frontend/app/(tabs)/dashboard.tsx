@@ -3,8 +3,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import { Redirect, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
-import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import IdEvidence from "@/src/components/IdEvidence";
@@ -12,7 +20,11 @@ import Logo from "@/src/components/Logo";
 import NeonButton from "@/src/components/NeonButton";
 import VinCheck from "@/src/components/VinCheck";
 import { useObd } from "@/src/context/ObdContext";
+import { groupDigits } from "@/src/format";
+import type { CompatibilityLine } from "@/src/obd/types";
 import { colors, font, radius, spacing, type } from "@/src/theme";
+
+const MONO = Platform.select({ ios: "Menlo", default: "monospace" });
 
 const CAR =
   "https://images.unsplash.com/photo-1580014317999-e9f1936787a5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwxfHxzcG9ydHMlMjBjYXIlMjBkYXJrJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3ODYyOTI4NTZ8MA&ixlib=rb-4.1.0&q=85";
@@ -51,10 +63,89 @@ function StatCell({
   );
 }
 
+/**
+ * The adapter compatibility check: seven commands, raw replies. This exists
+ * because the parsers make assumptions about ELM327 clones that only the
+ * clone itself can settle — whether it honours ATH1, whether it prints the
+ * ISO-TP PCI byte, whether the ECU answers A6 at all. One pass here explains
+ * a whole diagnostic run that came back empty.
+ */
+function CompatCheck() {
+  const { transport } = useObd();
+  const [lines, setLines] = useState<CompatibilityLine[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async () => {
+    if (!transport || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setLines(await transport.readCompatibility());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The check could not run.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View style={styles.compat}>
+      <Pressable
+        testID="compat-toggle"
+        onPress={() => (lines ? setLines(null) : void run())}
+        disabled={busy}
+        style={styles.compatToggle}
+      >
+        {busy ? (
+          <ActivityIndicator size="small" color={colors.brand} />
+        ) : (
+          <MaterialCommunityIcons
+            name={lines ? "chevron-down" : "stethoscope"}
+            size={18}
+            color={colors.brand}
+          />
+        )}
+        <Text style={styles.compatToggleText}>
+          {busy
+            ? "Asking the adapter…"
+            : lines
+              ? "Hide adapter check"
+              : "Adapter compatibility check"}
+        </Text>
+      </Pressable>
+
+      {error && (
+        <Text style={styles.compatError} testID="compat-error">
+          {error}
+        </Text>
+      )}
+
+      {lines && (
+        <View style={styles.compatBox} testID="compat-lines">
+          {lines.map((entry, i) => (
+            <View key={`${entry.command}-${i}`} style={styles.compatRow}>
+              <View style={styles.compatHead}>
+                <Text style={styles.compatCmd}>{entry.command}</Text>
+                <Text style={styles.compatLabel}>{entry.label}</Text>
+              </View>
+              {(entry.lines.length ? entry.lines : ["<no output>"]).map((l, j) => (
+                <Text key={j} style={styles.compatRaw}>
+                  {l}
+                </Text>
+              ))}
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { vehicle, device, evidence, runScan, disconnect } = useObd();
+  const { vehicle, device, evidence, disconnect } = useObd();
 
   if (!vehicle) return <Redirect href="/" />;
 
@@ -147,14 +238,15 @@ export default function Dashboard() {
               testID="stat-year"
               icon="calendar"
               label="YEAR"
-              value={String(vehicle.year)}
+              // Year 0 is "never decoded" — printing it would read as a model year.
+              value={vehicle.year > 0 ? String(vehicle.year) : "—"}
               mono
             />
             <StatCell
               testID="stat-mileage"
               icon="speedometer"
               label="MILEAGE"
-              value={vehicle.mileage != null ? `${vehicle.mileage.toLocaleString()} km` : "—"}
+              value={vehicle.mileage != null ? `${groupDigits(vehicle.mileage)} km` : "—"}
               mono
             />
             {vehicle.engineModel ? (
@@ -168,6 +260,8 @@ export default function Dashboard() {
           </View>
 
           {evidence ? <IdEvidence evidence={evidence} /> : null}
+
+          <CompatCheck />
         </View>
       </ScrollView>
 
@@ -297,6 +391,52 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
     fontFamily: font.semibold,
     fontSize: type.xl,
+  },
+  // adapter compatibility check
+  compat: { gap: spacing.sm },
+  compatToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+  },
+  compatToggleText: {
+    color: colors.brand,
+    fontFamily: font.medium,
+    fontSize: type.base,
+  },
+  compatError: {
+    color: colors.error,
+    fontFamily: font.regular,
+    fontSize: type.sm,
+    lineHeight: 18,
+  },
+  compatBox: {
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  compatRow: { gap: 2 },
+  compatHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  compatCmd: {
+    color: colors.brand,
+    fontFamily: MONO,
+    fontSize: type.sm,
+  },
+  compatLabel: {
+    flex: 1,
+    color: colors.onSurfaceTertiary,
+    fontFamily: font.regular,
+    fontSize: type.sm,
+  },
+  compatRaw: {
+    color: colors.onSurfaceSecondary,
+    fontFamily: MONO,
+    fontSize: 11,
+    lineHeight: 16,
   },
   footer: {
     position: "absolute",

@@ -1,19 +1,37 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 
-import type { Fault, ObdDevice, Vehicle } from "@/src/demo/obd";
-import { generateFaults, generateVehicle } from "@/src/demo/obd";
 import type { Identification } from "@/src/obd/identify";
-import type { IdentificationEvidence } from "@/src/obd/types";
+import { unidentified } from "@/src/obd/identify";
+import type { ObdTransport } from "@/src/obd/transport";
+import type {
+  DiagnosticReport,
+  DiagnosticsOptions,
+  Fault,
+  IdentificationEvidence,
+  ObdDevice,
+  Vehicle,
+} from "@/src/obd/types";
 
 type ObdState = {
   device: ObdDevice | null;
   vehicle: Vehicle | null;
   /** How the vehicle was identified (ECU evidence, warnings, score basis). */
   evidence: IdentificationEvidence | null;
-  faults: Fault[] | null; // result of the most recent scan (null = not scanned yet)
-  connect: (device: ObdDevice, identification?: Identification) => void;
+  /** The transport that owns the live connection — the scan goes through it. */
+  transport: ObdTransport | null;
+  /** The most recent diagnostic pass, or null before the first one. */
+  report: DiagnosticReport | null;
+  faults: Fault[] | null; // derived from `report`, null = not scanned yet
+  connect: (
+    device: ObdDevice,
+    identification?: Identification,
+    transport?: ObdTransport,
+  ) => void;
   disconnect: () => void;
-  runScan: () => Fault[];
+  /** Runs a real pass over the connected adapter and returns what it read.
+   *  Throws only when there is no adapter to ask — a car that answers
+   *  nothing is a report, not an error. */
+  runScan: (opts?: DiagnosticsOptions) => Promise<DiagnosticReport>;
   clearScan: () => void;
 };
 
@@ -23,16 +41,20 @@ export function ObdProvider({ children }: { children: React.ReactNode }) {
   const [device, setDevice] = useState<ObdDevice | null>(null);
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [evidence, setEvidence] = useState<IdentificationEvidence | null>(null);
-  const [faults, setFaults] = useState<Fault[] | null>(null);
+  const [transport, setTransport] = useState<ObdTransport | null>(null);
+  const [report, setReport] = useState<DiagnosticReport | null>(null);
 
   const value = useMemo<ObdState>(
     () => ({
       device,
       vehicle,
       evidence,
-      faults,
-      connect: (d, identification) => {
+      transport,
+      report,
+      faults: report?.faults ?? null,
+      connect: (d, identification, t) => {
         setDevice(d);
+        setTransport(t ?? null);
         if (identification) {
           // Real identification: vehicle + evidence from the pipeline
           // (ECU mode 09 read, vPIC decode, consistency checks).
@@ -40,27 +62,30 @@ export function ObdProvider({ children }: { children: React.ReactNode }) {
           setEvidence(identification.evidence);
         } else {
           // Defensive fallback — screens should normally pass an
-          // identification, but a bare connect keeps working with a
-          // generated demo vehicle.
-          setVehicle(generateVehicle());
-          setEvidence(null);
+          // identification, but a bare connect still has to leave the
+          // dashboard in a state that admits it knows nothing.
+          const fallback = unidentified("Vehicle identification was skipped.");
+          setVehicle(fallback.vehicle);
+          setEvidence(fallback.evidence);
         }
-        setFaults(null);
+        setReport(null);
       },
       disconnect: () => {
         setDevice(null);
         setVehicle(null);
         setEvidence(null);
-        setFaults(null);
+        setTransport(null);
+        setReport(null);
       },
-      runScan: () => {
-        const result = generateFaults();
-        setFaults(result);
+      runScan: async (opts) => {
+        if (!transport) throw new Error("Adapter is not connected.");
+        const result = await transport.readDiagnostics(opts);
+        setReport(result);
         return result;
       },
-      clearScan: () => setFaults(null),
+      clearScan: () => setReport(null),
     }),
-    [device, vehicle, evidence, faults],
+    [device, vehicle, evidence, transport, report],
   );
 
   return <ObdCtx.Provider value={value}>{children}</ObdCtx.Provider>;

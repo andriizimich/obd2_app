@@ -11,7 +11,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native";
@@ -20,10 +19,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Logo from "@/src/components/Logo";
 import NeonButton from "@/src/components/NeonButton";
 import { useObd } from "@/src/context/ObdContext";
-import { getDemoTransport, getTransport, loadMode, saveMode } from "@/src/obd";
+import { getTransport } from "@/src/obd";
 import type { Identification } from "@/src/obd/identify";
-import { identifyVehicle } from "@/src/obd/identify";
-import type { OdbMode } from "@/src/obd/transport";
+import { identifyVehicle, unidentified } from "@/src/obd/identify";
 import { OdbScanError } from "@/src/obd/transport";
 import type { ObdDevice } from "@/src/obd/types";
 import { colors, font, radius, spacing, type } from "@/src/theme";
@@ -152,26 +150,14 @@ export default function ConnectScreen() {
   const router = useRouter();
   const { connect } = useObd();
 
-  const [mode, setMode] = useState<OdbMode>("demo");
   const [phase, setPhase] = useState<Phase>("idle");
   const [devices, setDevices] = useState<ObdDevice[]>([]);
   const [connectingTo, setConnectingTo] = useState<ObdDevice | null>(null);
   const [errorKind, setErrorKind] = useState<ErrorKind | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
-  const [demoUnplugged, setDemoUnplugged] = useState(false);
   // Unnamed devices (MAC-only) are collapsed under one row — named
   // devices stay a plain list.
   const [showUnnamed, setShowUnnamed] = useState(false);
-
-  // Restore the last used mode; demo stays the default for development.
-  useEffect(() => {
-    loadMode().then(setMode);
-  }, []);
-
-  // Keep the demo transport's unplug simulation in sync with the switch.
-  useEffect(() => {
-    getDemoTransport().simulateUnplugged = demoUnplugged;
-  }, [demoUnplugged]);
 
   const reset = useCallback(() => {
     setPhase("idle");
@@ -181,24 +167,15 @@ export default function ConnectScreen() {
     setConnectError(null);
   }, []);
 
-  const toggleMode = (demo: boolean) => {
-    const next: OdbMode = demo ? "demo" : "real";
-    setMode(next);
-    saveMode(next);
-    reset();
-  };
-
   const startSearch = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setPhase("scanning");
     // Fresh search — clear the previous results right away.
     setDevices([]);
     setConnectError(null);
-    const transport = getTransport(mode);
-    const activeMode = mode;
+    const transport = getTransport();
     try {
       const found = await transport.scanDevices();
-      if (activeMode !== mode) return; // mode switched mid-scan
       if (found.length === 0) {
         setErrorKind("none-found");
         setPhase("error");
@@ -207,7 +184,6 @@ export default function ConnectScreen() {
       setDevices(found);
       setPhase("found");
     } catch (e) {
-      if (activeMode !== mode) return;
       setErrorKind(e instanceof OdbScanError ? e.kind : "none-found");
       setPhase("error");
     }
@@ -218,10 +194,9 @@ export default function ConnectScreen() {
     setPhase("connecting");
     setConnectingTo(device);
     setConnectError(null);
-    const transport = getTransport(mode);
+    const transport = getTransport();
     try {
-      // Real transports verify the ELM327 handshake (ATZ + ATI) here;
-      // demo mode just simulates the delay.
+      // The handshake (ATZ reset + ATI identification) happens here.
       await transport.connect(device);
     } catch (e) {
       transport.disconnect();
@@ -238,13 +213,21 @@ export default function ConnectScreen() {
     // Identify the vehicle: mode 09 read (VIN/CALID/ECU name/protocol),
     // vPIC decode and consistency checks. Failing this step must not
     // block the connection — the dashboard shows the warnings instead.
-    let identification: Identification | undefined;
+    let identification: Identification;
     try {
       identification = await identifyVehicle(transport);
-    } catch {
-      // Defensive: connect() falls back to a generated vehicle.
+    } catch (e) {
+      // The link is up but mode 09 did not complete. Say so on the
+      // dashboard rather than filling the fields with a guessed car.
+      identification = unidentified(
+        e instanceof Error
+          ? `Vehicle identification failed: ${e.message}`
+          : "Vehicle identification failed.",
+      );
     }
-    connect(device, identification);
+    // The transport is handed to the context so the scan screen can run a
+    // pass over this same connection.
+    connect(device, identification, transport);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.replace("/(tabs)/dashboard");
   };
@@ -398,40 +381,6 @@ export default function ConnectScreen() {
         </View>
 
         <View style={styles.footer}>
-          <View style={styles.demoRow}>
-            <MaterialCommunityIcons
-              name="flask-outline"
-              size={16}
-              color={colors.onSurfaceTertiary}
-            />
-            <Text style={styles.demoLabel}>Demo mode</Text>
-            <Switch
-              testID="demo-mode-switch"
-              value={mode === "demo"}
-              onValueChange={toggleMode}
-              trackColor={{ false: colors.surfaceTertiary, true: colors.brand }}
-              thumbColor={colors.onSurface}
-            />
-          </View>
-
-          {mode === "demo" && (
-            <View style={styles.demoRow}>
-              <MaterialCommunityIcons
-                name="flask-outline"
-                size={16}
-                color={colors.onSurfaceTertiary}
-              />
-              <Text style={styles.demoLabel}>Simulate adapter unplugged</Text>
-              <Switch
-                testID="demo-unplug-switch"
-                value={demoUnplugged}
-                onValueChange={setDemoUnplugged}
-                trackColor={{ false: colors.surfaceTertiary, true: colors.error }}
-                thumbColor={colors.onSurface}
-              />
-            </View>
-          )}
-
           {phase === "idle" && (
             <NeonButton
               testID="search-button"
@@ -674,15 +623,4 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   footer: { gap: spacing.md },
-  demoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    justifyContent: "center",
-  },
-  demoLabel: {
-    color: colors.onSurfaceTertiary,
-    fontFamily: font.regular,
-    fontSize: type.sm,
-  },
 });

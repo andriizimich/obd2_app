@@ -12,11 +12,20 @@ import RNBluetoothClassic, {
 } from "react-native-bluetooth-classic";
 
 import { Elm327Channel } from "@/src/obd/at";
+import {
+  readCompatibilityOver,
+  readDiagnosticsOver,
+} from "@/src/obd/diagnostics";
 import { ensureBleReady } from "@/src/obd/ble";
 import { elm327Handshake, readVehicleInfoOver } from "@/src/obd/mode09";
 import type { AdapterInfo, ObdTransport, VehicleInfo } from "@/src/obd/transport";
 import { OdbConnectError, OdbScanError } from "@/src/obd/transport";
-import type { ObdDevice } from "@/src/obd/types";
+import type {
+  CompatibilityLine,
+  DiagnosticReport,
+  DiagnosticsOptions,
+  ObdDevice,
+} from "@/src/obd/types";
 
 const POST_CONNECT_SETTLE_MS = 500;
 
@@ -31,8 +40,6 @@ function toObdDevice(device: BluetoothDevice): ObdDevice {
 }
 
 export class ClassicTransport implements ObdTransport {
-  readonly mode = "real" as const;
-
   private device: BluetoothDevice | null = null;
   private elm: Elm327Channel | null = null;
   private unsubscribe: BluetoothEventSubscription | null = null;
@@ -89,6 +96,22 @@ export class ClassicTransport implements ObdTransport {
       throw new OdbConnectError("disconnected", "Adapter is not connected.");
     }
     return readVehicleInfoOver(elm);
+  }
+
+  async readDiagnostics(opts?: DiagnosticsOptions): Promise<DiagnosticReport> {
+    const elm = this.elm;
+    if (!elm || !this.device) {
+      throw new OdbConnectError("disconnected", "Adapter is not connected.");
+    }
+    return readDiagnosticsOver(elm, opts);
+  }
+
+  async readCompatibility(): Promise<CompatibilityLine[]> {
+    const elm = this.elm;
+    if (!elm || !this.device) {
+      throw new OdbConnectError("disconnected", "Adapter is not connected.");
+    }
+    return readCompatibilityOver(elm);
   }
 
   disconnect(): void {

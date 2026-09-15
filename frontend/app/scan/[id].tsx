@@ -11,10 +11,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import SystemChip from "@/src/components/SystemChip";
+import FaultRow from "@/src/components/FaultRow";
 import { useToast } from "@/src/components/Toast";
 import { deleteScan, getScan, type Scan } from "@/src/api/client";
-import { colors, font, groupColor, radius, spacing, type } from "@/src/theme";
+import { groupDigits } from "@/src/format";
+import { colors, font, radius, spacing, type } from "@/src/theme";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
@@ -107,7 +108,7 @@ export default function ScanDetail() {
             <Text style={styles.carMeta}>
               {scan.vehicle.year} ·{" "}
               {scan.vehicle.mileage != null
-                ? `${scan.vehicle.mileage.toLocaleString()} km`
+                ? `${groupDigits(scan.vehicle.mileage)} km`
                 : "mileage —"}
             </Text>
             <View style={styles.vinRow}>
@@ -143,21 +144,9 @@ export default function ScanDetail() {
             </Text>
           </View>
 
-          {scan.faults.map((f) => {
-            const c = groupColor(f.group);
-            return (
-              <View key={f.code} style={styles.faultRow}>
-                <View style={[styles.codeBox, { borderColor: c }]}>
-                  <Text style={[styles.code, { color: c }]}>{f.code}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <SystemChip group={f.group} />
-                  <Text style={styles.faultTitle}>{f.title}</Text>
-                  <Text style={styles.faultDesc}>{f.description}</Text>
-                </View>
-              </View>
-            );
-          })}
+          {scan.faults.map((f, i) => (
+            <FaultRow key={`${f.code}-${f.status ?? "stored"}-${i}`} fault={f} />
+          ))}
         </ScrollView>
       )}
     </View>
@@ -234,38 +223,5 @@ const styles = StyleSheet.create({
     fontFamily: font.displaySemi,
     fontSize: type.lg,
     letterSpacing: 0.5,
-  },
-  faultRow: {
-    flexDirection: "row",
-    gap: spacing.md,
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-  },
-  codeBox: {
-    borderWidth: 1.5,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 74,
-    alignSelf: "flex-start",
-  },
-  code: { fontFamily: font.display, fontSize: type.xl, letterSpacing: 0.5 },
-  faultTitle: {
-    color: colors.onSurface,
-    fontFamily: font.semibold,
-    fontSize: type.lg,
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  faultDesc: {
-    color: colors.onSurfaceTertiary,
-    fontFamily: font.regular,
-    fontSize: type.base,
-    lineHeight: 20,
   },
 });

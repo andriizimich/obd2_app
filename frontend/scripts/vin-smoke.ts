@@ -2,7 +2,6 @@
 // Run: npx tsx scripts/vin-smoke.ts [--network]
 
 import {
-  buildDemoVin,
   computeCheckDigit,
   modelYearsForChar,
   validateVin,
@@ -72,21 +71,22 @@ eq("WMI 1FA", wmiManufacturer("1FA1JZXW3FP000001"), "Ford");
 eq("WMI WDD", wmiManufacturer("WDD1JZXWXHP000001"), "Mercedes-Benz");
 eq("WMI unknown", wmiManufacturer("ZZZ1JZXWXJP000001"), null);
 
-// --- Demo VIN generation (deterministic via injected serial) ----------------
+// --- Synthetic fixture VINs -------------------------------------------------
+// The WMI fixtures used above, checked as whole VINs: check digit included.
+// All six were verified live against NHTSA vPIC — no check-digit error, and
+// each WMI resolves to the manufacturer the check above expects.
 
-// All six were verified live against NHTSA vPIC: no check-digit error,
-// WMI resolves to the expected manufacturer.
-eq("demo VW", buildDemoVin("WVW", 2018, "000001"), "WVW1JZXWXJP000001");
-eq("demo BMW", buildDemoVin("WBA", 2016, "000001"), "WBA1JZXW2GP000001");
-eq("demo Toyota", buildDemoVin("4T1", 2020, "000001"), "4T11JZXW1LP000001");
-eq("demo Audi", buildDemoVin("WAU", 2019, "000001"), "WAU1JZXW1KP000001");
-eq("demo Ford", buildDemoVin("1FA", 2015, "000001"), "1FA1JZXW3FP000001");
-eq("demo Mercedes", buildDemoVin("WDD", 2017, "000001"), "WDD1JZXWXHP000001");
+const FIXTURE_VINS = [
+  "WVW1JZXWXJP000001",
+  "WBA1JZXW2GP000001",
+  "4T11JZXW1LP000001",
+  "WAU1JZXW1KP000001",
+  "1FA1JZXW3FP000001",
+  "WDD1JZXWXHP000001",
+];
 
-// Every generated demo VIN must validate.
-for (const [wmi, year] of [["WVW", 2018], ["WBA", 2016], ["4T1", 2020], ["WAU", 2019], ["1FA", 2015], ["WDD", 2017]] as const) {
-  const vin = buildDemoVin(wmi, year);
-  eq(`demo ${wmi} validates`, validateVin(vin).valid, true);
+for (const vin of FIXTURE_VINS) {
+  eq(`fixture ${vin.slice(0, 3)} validates`, validateVin(vin).valid, true);
 }
 
 // --- Network (optional) -----------------------------------------------------

@@ -1,12 +1,15 @@
-// Transport abstraction: one interface, two implementations.
-// DemoTransport (src/obd/demo.ts) keeps the simulation path used during
-// development; BleTransport (src/obd/ble.ts) talks to a real ELM327
-// adapter over BLE. Screens never import implementations directly —
-// they get a transport from src/obd/index.ts by mode.
+// Transport abstraction: one interface over the real adapter.
+// BleTransport (src/obd/ble.ts) talks to a BLE ELM327, ClassicTransport
+// (src/obd/classic.ts) to a Bluetooth Classic one, and RealTransport
+// (src/obd/real.ts) picks between them. Screens never import
+// implementations directly — they get one from src/obd/index.ts.
 
-import type { ObdDevice, Vehicle } from "@/src/obd/types";
-
-export type OdbMode = "demo" | "real";
+import type {
+  CompatibilityLine,
+  DiagnosticReport,
+  DiagnosticsOptions,
+  ObdDevice,
+} from "@/src/obd/types";
 
 /** Result of a successful adapter handshake. */
 export type AdapterInfo = {
@@ -52,15 +55,14 @@ export type VehicleInfo = {
   ecuName: string | null;
   /** Detected OBD protocol (ATDPN), e.g. "ISO 15765-4 (CAN 11-bit/500k)". */
   protocol: string | null;
-  /** Demo transport fills this with its generated vehicle — real transports
-   *  leave it undefined and the caller builds the vehicle from the fields
-   *  above. */
-  vehicle?: Vehicle;
+  /** Odometer in whole kilometres (mode 01, PID A6). Null when the ECU does
+   *  not implement the PID — the standard only added it for 2019+ vehicles,
+   *  so most cars answer NO DATA. Never derived from PID 31: that counter
+   *  resets on every code clear and is not the odometer. */
+  mileage?: number | null;
 };
 
 export interface ObdTransport {
-  readonly mode: OdbMode;
-
   /** Discover nearby OBD adapters. Resolves with [] when nothing found. */
   scanDevices(): Promise<ObdDevice[]>;
 
@@ -73,6 +75,24 @@ export interface ObdTransport {
   /** Read vehicle information from the ECU. Requires an active connection;
    *  individual fields may be null when unsupported. */
   readVehicleInfo(): Promise<VehicleInfo>;
+
+  /**
+   * Run the diagnostic pass — fault codes, lamp state and odometer — and
+   * report what was read alongside what was not.
+   *
+   * Resolves for every outcome a connected adapter can produce, including
+   * "this vehicle answers nothing": a rejected promise here reaches a
+   * progress screen, where it is indistinguishable from a hang.
+   */
+  readDiagnostics(opts?: DiagnosticsOptions): Promise<DiagnosticReport>;
+
+  /**
+   * Ask the adapter a fixed set of questions and keep the raw replies.
+   * This is how a reading taken on an unfamiliar car is explained
+   * afterwards: the parsers assume things about clones that only the
+   * adapter itself can confirm or refute.
+   */
+  readCompatibility(): Promise<CompatibilityLine[]>;
 
   /** Drop the active connection, if any. */
   disconnect(): void;

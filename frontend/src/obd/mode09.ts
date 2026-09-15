@@ -9,8 +9,14 @@
 // so data must be parsed leniently.
 
 import type { Elm327Channel } from "@/src/obd/at";
+import { extractBytes } from "@/src/obd/at";
+import { readOdometer } from "@/src/obd/mode01";
 import type { AdapterInfo, VehicleInfo } from "@/src/obd/transport";
 import { OdbConnectError } from "@/src/obd/transport";
+
+// Defined in at.ts (shared with the mode 01 readers); re-exported so the
+// existing importers keep working.
+export { extractBytes };
 
 // ELM327 ATDPN result → human-readable OBD protocol.
 export const PROTOCOL_NAMES: Record<string, string> = {
@@ -25,19 +31,6 @@ export const PROTOCOL_NAMES: Record<string, string> = {
   "9": "ISO 15765-4 (CAN 29-bit/250k)",
   A: "SAE J1939 (CAN 29-bit/250k)",
 };
-
-const HEX_TOKEN = /^[0-9a-f]{2}$/i;
-
-/** Pull all byte tokens out of raw ELM lines (frame counters, "N:" prefixes
- *  and CAN headers are not hex-pair tokens or are dropped as noise). */
-export function extractBytes(lines: string[]): number[] {
-  const out: number[] = [];
-  for (const line of lines) {
-    const tokens = line.split(/[\s:]+/).filter((t) => HEX_TOKEN.test(t));
-    for (const t of tokens) out.push(parseInt(t, 16));
-  }
-  return out;
-}
 
 /** Locate a `49 <pid> <count>` block; returns the count byte and the data
  *  bytes after it. Null when the ECU answered without this PID. */
@@ -62,11 +55,33 @@ export function ascii(data: number[]): string {
   return out;
 }
 
+/**
+ * ATDPN's bare protocol code, or null when the line is not one.
+ *
+ * An adapter that found the protocol itself prefixes the code with `A` — the
+ * factory default, so most cars answer `A6`, not `6`. The prefix is a flag,
+ * not part of the code, and looking up `A6` in {@link PROTOCOL_NAMES} finds
+ * nothing. Only the first `A` is the flag: `AA` is auto-detected J1939, and
+ * a lone `A` is J1939 under a protocol the user pinned.
+ */
+export function normaliseProtocolCode(raw: string): string | null {
+  const m = /^(A?)([0-9A])$/.exec(raw.trim().toUpperCase());
+  return m ? m[2] : null;
+}
+
+/** ATDPN reply lines → the protocol code. The answer is the last line. */
+export function detectProtocolCode(lines: string[]): string | null {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const code = normaliseProtocolCode(lines[i] ?? "");
+    if (code) return code;
+  }
+  return null;
+}
+
 export async function readProtocol(
   channel: Elm327Channel,
 ): Promise<string | null> {
-  const lines = await channel.command("ATDPN", 2000);
-  const code = (lines[lines.length - 1] ?? "").trim().toUpperCase();
+  const code = detectProtocolCode(await channel.command("ATDPN", 2000));
   if (!code) return null;
   return PROTOCOL_NAMES[code] ?? `Unknown protocol (${code})`;
 }
@@ -157,10 +172,12 @@ export async function elm327Handshake(
   return { adapterId: idLines.length > 0 ? idLines.join(" / ") : null };
 }
 
-/** Best-effort vehicle reads (mode 09) shared by both transports. */
+/** Best-effort vehicle reads shared by both transports: mode 09 (VIN,
+ *  CALID, ECU name) plus the mode 01 odometer, which the dashboard needs
+ *  at connect time rather than at scan time. */
 export async function readVehicleInfoOver(
   elm: Elm327Channel,
-): Promise<Omit<VehicleInfo, "vehicle">> {
+): Promise<VehicleInfo> {
   // Ask the adapter to join multi-frame replies into one line; the
   // parser handles multi-line responses anyway, so a "?" is harmless.
   try {
@@ -194,5 +211,14 @@ export async function readVehicleInfoOver(
   } catch {
     // ignore
   }
-  return { vin, calid, ecuName, protocol };
+  // Odometer (mode 01 PID A6) — a different mode, but this is the one place
+  // both transports already do their connect-time reads, and the dashboard
+  // wants the real figure before any scan runs.
+  let mileage: number | null = null;
+  try {
+    mileage = await readOdometer(elm);
+  } catch {
+    // ignore
+  }
+  return { vin, calid, ecuName, protocol, mileage };
 }

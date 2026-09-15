@@ -27,17 +27,31 @@ You can start developing by editing the files inside the **app** directory. This
 
 ## Real BLE connection (OBD-II adapter)
 
-The connect screen works in two modes, toggled with the **Demo mode** switch:
+The app reads from a real car only — there is no simulation mode, and no screen
+shows invented data. Every number on screen came off the adapter, or the screen
+says it could not be read. **Without an ELM327 plugged into a car, the app has
+nothing to show past the connect screen.**
 
-- **Demo** (default) — simulated adapters from `src/demo/obd.ts`; no hardware needed.
-- **BLE** — real scan and connection to an ELM327 adapter (Vgate iCar Pro, vLinker, Viecar, KW902…) via `react-native-ble-plx`. The connection is verified with an ELM327 handshake (`ATZ` → `ATE0` → `ATI`) over the adapter's UART characteristic.
+The connect screen scans for and connects to an ELM327 adapter (Vgate iCar Pro,
+vLinker, Viecar, KW902…) over BLE via `react-native-ble-plx`, verifying the
+handshake (`ATZ` → `ATE0` → `ATI`) over the adapter's UART characteristic.
 
 The transport layer lives in `src/obd/`:
 
-- `transport.ts` — shared interface (`scanDevices` / `connect` / `disconnect`)
-- `demo.ts` — simulation implementation
-- `ble.ts` — real BLE implementation
+- `transport.ts` — shared interface (`scanDevices` / `connect` / `readVehicleInfo` / `readDiagnostics`)
+- `ble.ts` / `classic.ts` — BLE and Bluetooth Classic implementations
+- `real.ts` — picks between them
 - `at.ts` — ELM327 framing/parsing (unit-testable without hardware: `npx tsx scripts/elm327-smoke.ts`)
+- `frames.ts`, `dtc.ts`, `dtc-dictionary.ts`, `mode01.ts`, `mode03.ts`, `mode09.ts`, `diagnostics.ts` — the diagnostic pass
+
+Fault-code titles come from `dtc-dictionary.ts`, a bundled table of standard
+SAE J2012 codes. A code it does not hold is still decoded from its own bytes —
+the system, the subsystem, whether it is SAE-defined or the manufacturer's —
+and its description says so, rather than the row going blank.
+
+`npm run smoke` runs the offline suites: synthetic adapter frames through the
+real parsers. They prove the parsing logic, not the behaviour of any particular
+adapter — see the section below.
 
 ### Running on a phone (BLE requires a development build)
 
@@ -55,9 +69,33 @@ npx eas-cli build --profile development --platform android
 npx expo start
 ```
 
-Install the resulting APK on the phone, then open the app, switch **Demo mode** off and search. If you have Android Studio installed, `npx expo run:android` builds the dev client locally instead.
+Install the resulting APK on the phone, plug the adapter into the car's OBD-II
+port, turn the ignition on and search. If you have Android Studio installed,
+`npx expo run:android` builds the dev client locally instead.
 
 Permissions are injected automatically by the `react-native-ble-plx` config plugin in `app.json` (`BLUETOOTH_SCAN`/`CONNECT` on Android 12+, location only below API 31, `NSBluetoothAlwaysUsageDescription` on iOS).
+
+### What the offline suites do not prove
+
+Everything in `npm run smoke` is fabricated bytes fed through the real parsers.
+That covers the parsing logic and the honesty rules, and it does **not** cover:
+
+- the `A6` divisor — the odometer is reported in 0.1 km units, so a wrong
+  divisor shows a reading exactly ten times too large;
+- whether a given clone honours `ATH1` and whether it prints the ISO-TP PCI
+  byte;
+- whether a given ECU answers `07`, `0A` or `A6` at all — many cars before
+  ~2010 do not answer `0A`, and most do not answer `A6`;
+- real timings, adapter resets and voltage sag.
+
+Two surfaces exist precisely so the first real reading can settle these:
+
+- **Adapter compatibility check** (dashboard, under the identification
+  evidence) — runs `ATI`, `ATDPN`, `ATH1`, `0101`, `01A6`, `03` and shows
+  every reply verbatim, then puts headers back with `ATH0`. One screenshot of
+  this answers all four questions above.
+- **Adapter output** (results screen) — the raw lines of the diagnostic pass
+  itself, in order, as they came off the wire.
 
 ## Get a fresh project
 

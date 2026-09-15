@@ -19,12 +19,21 @@ import { PermissionsAndroid, Platform } from "react-native";
 
 import { Elm327Channel } from "@/src/obd/at";
 import {
+  readCompatibilityOver,
+  readDiagnosticsOver,
+} from "@/src/obd/diagnostics";
+import {
   elm327Handshake,
   readVehicleInfoOver,
 } from "@/src/obd/mode09";
 import type { AdapterInfo, ObdTransport, VehicleInfo } from "@/src/obd/transport";
 import { OdbConnectError, OdbScanError } from "@/src/obd/transport";
-import type { ObdDevice } from "@/src/obd/types";
+import type {
+  CompatibilityLine,
+  DiagnosticReport,
+  DiagnosticsOptions,
+  ObdDevice,
+} from "@/src/obd/types";
 
 // Cheap ELM327 clones sometimes advertise only every few seconds —
 // 12s gives them room without making the user wait forever.
@@ -191,8 +200,6 @@ async function pickChannel(services: Service[]): Promise<OdbChannel | null> {
 }
 
 export class BleTransport implements ObdTransport {
-  readonly mode = "real" as const;
-
   private connected: Device | null = null;
   private channel: OdbChannel | null = null;
   private elm: Elm327Channel | null = null;
@@ -299,6 +306,22 @@ export class BleTransport implements ObdTransport {
       throw new OdbConnectError("disconnected", "Adapter is not connected.");
     }
     return readVehicleInfoOver(elm);
+  }
+
+  async readDiagnostics(opts?: DiagnosticsOptions): Promise<DiagnosticReport> {
+    const elm = this.elm;
+    if (!elm || !this.connected) {
+      throw new OdbConnectError("disconnected", "Adapter is not connected.");
+    }
+    return readDiagnosticsOver(elm, opts);
+  }
+
+  async readCompatibility(): Promise<CompatibilityLine[]> {
+    const elm = this.elm;
+    if (!elm || !this.connected) {
+      throw new OdbConnectError("disconnected", "Adapter is not connected.");
+    }
+    return readCompatibilityOver(elm);
   }
 
   disconnect(): void {

@@ -60,15 +60,37 @@ function intOrUndefined(value: string): number | undefined {
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
-/** The "nothing readable" vehicle, shown when the ECU gives no VIN at all. */
-function unknownVehicle(vin: string | null): Vehicle {
+/** The "nothing readable" vehicle. Takes the odometer because mileage does
+ *  not depend on the VIN: a car whose VIN we failed to read can still
+ *  report its kilometres. */
+export function unidentifiedVehicle(
+  vin: string | null,
+  mileage: number | null = null,
+): Vehicle {
   return {
     vin: vin ?? "",
     make: "Unknown",
     model: "",
     year: 0,
-    mileage: null,
+    mileage,
     confidence: "unknown",
+  };
+}
+
+/** Identification for a connect that got a link but no readable vehicle —
+ *  a transport that threw mid-read, say. Keeps the dashboard working and
+ *  says why, instead of inventing a car. */
+export function unidentified(reason: string): Identification {
+  return {
+    vehicle: unidentifiedVehicle(null),
+    evidence: {
+      vinFromEcu: null,
+      calid: [],
+      ecuName: null,
+      protocol: null,
+      vpicStatus: "not-run",
+      warnings: [reason],
+    },
   };
 }
 
@@ -76,22 +98,6 @@ export async function identifyVehicle(
   transport: ObdTransport,
 ): Promise<Identification> {
   const info = await transport.readVehicleInfo();
-
-  // Demo transport delivers a ready vehicle — nothing to decode or check.
-  if (info.vehicle) {
-    return {
-      vehicle: info.vehicle,
-      evidence: {
-        source: "demo",
-        vinFromEcu: info.vin,
-        calid: info.calid,
-        ecuName: info.ecuName,
-        protocol: info.protocol,
-        vpicStatus: "not-run",
-        warnings: [],
-      },
-    };
-  }
 
   const warnings: string[] = [];
   const rawVin = info.vin;
@@ -102,9 +108,8 @@ export async function identifyVehicle(
     if (rawVin) warnings.push("ECU returned an invalid VIN — check digit or format failed.");
     else warnings.push("ECU did not provide a VIN (mode 09). Vehicle identity is unconfirmed.");
     return {
-      vehicle: unknownVehicle(rawVin),
+      vehicle: unidentifiedVehicle(rawVin, info.mileage ?? null),
       evidence: {
-        source: "ecu",
         vinFromEcu: rawVin,
         calid: info.calid,
         ecuName: info.ecuName,
@@ -179,7 +184,7 @@ export async function identifyVehicle(
     make,
     model,
     year,
-    mileage: null,
+    mileage: info.mileage ?? null,
     ...enrichment,
     confidence: downgradeConfidence(base, warnings.length),
   };
@@ -187,7 +192,6 @@ export async function identifyVehicle(
   return {
     vehicle,
     evidence: {
-      source: "ecu",
       vinFromEcu: info.vin,
       calid: info.calid,
       ecuName: info.ecuName,

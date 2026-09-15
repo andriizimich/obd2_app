@@ -9,7 +9,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "smoke": "tsx scripts/elm327-smoke.ts && tsx scripts/obd-frames-smoke.ts && tsx scripts/obd-diag-smoke.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "6.1.2",

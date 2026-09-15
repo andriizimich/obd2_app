@@ -86,7 +86,9 @@ export function vinRegion(firstChar: string): VinRegion {
   return "Unknown";
 }
 
-// Compact WMI -> manufacturer map covering the demo fleet.
+// Compact WMI -> manufacturer map: a local fallback for when the NHTSA
+// lookup fails, not a substitute for it. It covers a handful of common
+// makes — a VIN outside this table simply keeps whatever the decoder said.
 export const WMI_MANUFACTURERS: Record<string, string> = {
   WVW: "Volkswagen",
   WBA: "BMW",
@@ -115,25 +117,3 @@ export function modelYearsForChar(char: string): number[] {
   return [1980 + i, 2010 + i, 2040 + i];
 }
 
-// The position-10 character for a given model year.
-export function yearCharFor(year: number): string | null {
-  const i = (((year - 1980) % 30) + 30) % 30;
-  return YEAR_CODE_ORDER[i] ?? null;
-}
-
-// Builds a structurally valid demo VIN:
-// [1-3] WMI, [4-8] VDS, [9] computed check digit, [10] year char,
-// [11] plant, [12-17] serial.
-export function buildDemoVin(wmi: string, year: number, serial?: string): string {
-  const w = wmi.trim().toUpperCase().slice(0, 3);
-  const vds = "1JZXW"; // demo vehicle descriptor section (constant)
-  const yr = yearCharFor(year) ?? "1";
-  const plant = "P";
-  const ser = (
-    serial ?? String(Math.floor(Math.random() * 1_000_000))
-  ).padStart(6, "0").slice(-6);
-
-  const body = w + vds + "0" + yr + plant + ser; // 17 chars, pos 9 = placeholder
-  const cd = computeCheckDigit(body);
-  return body.slice(0, 8) + cd + body.slice(9);
-}

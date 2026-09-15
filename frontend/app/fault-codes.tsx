@@ -1,10 +1,11 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,60 +14,69 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import FaultRow from "@/src/components/FaultRow";
 import NeonButton from "@/src/components/NeonButton";
-import SystemChip from "@/src/components/SystemChip";
 import { useToast } from "@/src/components/Toast";
 import { useObd } from "@/src/context/ObdContext";
-import type { Fault } from "@/src/demo/obd";
+import { groupDigits } from "@/src/format";
+import type { CoverageStatus, DiagnosticReport } from "@/src/obd/types";
 import { createScan } from "@/src/api/client";
 import { sendReport } from "@/src/api/telegram";
-import { colors, font, groupColor, radius, spacing, type } from "@/src/theme";
+import { colors, font, radius, spacing, type } from "@/src/theme";
 
-const CHECK_STEPS = [
-  "Engine control module",
-  "Transmission",
-  "ABS / Brakes",
-  "Emissions",
-  "Lighting",
-  "Body / Electrical",
-];
+/**
+ * The pass can be over in well under a second on a fast car, and a progress
+ * screen that flashes is unreadable — hold it this long at minimum so the
+ * steps are actually seen. Not a fixed duration: a slow car takes as long
+ * as it takes.
+ */
+const MIN_SCAN_MS = 800;
 
-const SEVERITY_COLOR: Record<string, string> = {
-  high: colors.error,
-  medium: colors.warning,
-  low: colors.onSurfaceTertiary,
+type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+
+const MONO = Platform.select({ ios: "Menlo", default: "monospace" });
+
+/**
+ * How each coverage status reads on screen. `empty` and `unsupported` must
+ * never look the same: "no pending codes" is good news, "this ECU does not
+ * answer 07" is a missing reading.
+ */
+const COVERAGE_META: Record<
+  CoverageStatus,
+  { icon: IconName; color: string; text: string }
+> = {
+  ok: { icon: "check-circle-outline", color: colors.success, text: "read" },
+  empty: { icon: "minus-circle-outline", color: colors.onSurfaceTertiary, text: "none" },
+  unsupported: {
+    icon: "help-circle-outline",
+    color: colors.onSurfaceTertiary,
+    text: "not supported",
+  },
+  error: { icon: "alert-circle-outline", color: colors.error, text: "failed" },
+  skipped: { icon: "clock-outline", color: colors.onSurfaceTertiary, text: "skipped" },
 };
 
-function FaultRow({ fault }: { fault: Fault }) {
-  const c = groupColor(fault.group);
+function CoverageRow({
+  request,
+  label,
+  status,
+  detail,
+}: {
+  request: string;
+  label: string;
+  status: CoverageStatus;
+  detail?: string;
+}) {
+  const meta = COVERAGE_META[status];
   return (
-    <View testID={`fault-row-${fault.code}`} style={styles.faultRow}>
-      <View style={[styles.codeBox, { borderColor: c }]}>
-        <Text style={[styles.code, { color: c }]}>{fault.code}</Text>
-      </View>
+    <View style={styles.covRow} testID={`coverage-${request}`}>
+      <MaterialCommunityIcons name={meta.icon} size={16} color={meta.color} />
+      <Text style={styles.covReq}>{request}</Text>
       <View style={{ flex: 1 }}>
-        <View style={styles.faultHead}>
-          <SystemChip group={fault.group} />
-          <View style={styles.severity}>
-            <View
-              style={[
-                styles.sevDot,
-                { backgroundColor: SEVERITY_COLOR[fault.severity] },
-              ]}
-            />
-            <Text
-              style={[
-                styles.sevText,
-                { color: SEVERITY_COLOR[fault.severity] },
-              ]}
-            >
-              {fault.severity}
-            </Text>
-          </View>
-        </View>
-        <Text style={styles.faultTitle}>{fault.title}</Text>
-        <Text style={styles.faultDesc}>{fault.description}</Text>
+        <Text style={styles.covLabel}>{label}</Text>
+        {!!detail && <Text style={styles.covDetail}>{detail}</Text>}
       </View>
+      <Text style={[styles.covStatus, { color: meta.color }]}>{meta.text}</Text>
     </View>
   );
 }
@@ -77,54 +87,85 @@ export default function FaultCodesScreen() {
   const toast = useToast();
   const { vehicle, device, runScan } = useObd();
 
-  const [scanning, setScanning] = useState(true);
-  const [stepIndex, setStepIndex] = useState(0);
-  const [faults, setFaults] = useState<Fault[] | null>(null);
+  const [phase, setPhase] = useState<"scanning" | "done" | "error">("scanning");
+  const [step, setStep] = useState({ stage: "Contacting the adapter…", index: 0, total: 0 });
+  const [report, setReport] = useState<DiagnosticReport | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
 
   const progress = useRef(new Animated.Value(0)).current;
-  const generated = useRef(false);
+  const started = useRef(false);
+  const cancelled = useRef(false);
 
-  useEffect(() => {
-    if (!vehicle) return;
-    Animated.timing(progress, {
-      toValue: 1,
-      duration: 3600,
-      easing: Easing.inOut(Easing.ease),
-      useNativeDriver: false,
-    }).start();
-
-    const stepTimer = setInterval(() => {
-      setStepIndex((i) => Math.min(i + 1, CHECK_STEPS.length - 1));
-    }, 3600 / CHECK_STEPS.length);
-
-    const done = setTimeout(() => {
-      if (generated.current) return;
-      generated.current = true;
-      const result = runScan();
-      setFaults(result);
-      setScanning(false);
+  const scan = useCallback(async () => {
+    setPhase("scanning");
+    setScanError(null);
+    progress.setValue(0);
+    const startedAt = Date.now();
+    try {
+      const result = await runScan({
+        onProgress: (p) => {
+          if (cancelled.current) return;
+          setStep(p);
+          // The bar tracks the pass that is actually running — the stage
+          // list comes from the orchestrator, not from a fixed script.
+          Animated.timing(progress, {
+            toValue: p.total > 0 ? p.index / p.total : 0,
+            duration: 250,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: false,
+          }).start();
+        },
+      });
+      const remaining = MIN_SCAN_MS - (Date.now() - startedAt);
+      if (remaining > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remaining));
+      }
+      if (cancelled.current) return;
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: false,
+      }).start();
+      setReport(result);
+      setPhase("done");
       Haptics.notificationAsync(
-        result.length
+        result.faults.length
           ? Haptics.NotificationFeedbackType.Warning
           : Haptics.NotificationFeedbackType.Success,
       );
-    }, 3800);
+    } catch (err) {
+      if (cancelled.current) return;
+      setScanError(
+        err instanceof Error ? err.message : "The scan could not be completed.",
+      );
+      setPhase("error");
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }, [runScan, progress]);
 
-    return () => {
-      clearInterval(stepTimer);
-      clearTimeout(done);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(
+    () => () => {
+      cancelled.current = true;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!vehicle || started.current) return;
+    started.current = true;
+    void scan();
+  }, [vehicle, scan]);
 
   if (!vehicle) return <Redirect href="/" />;
 
   const onSend = async () => {
-    if (!faults) return;
+    if (!report) return;
+    const faults = report.faults;
     setSending(true);
     try {
-      await sendReport(vehicle, faults);
+      await sendReport(vehicle, report);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       toast("Check result sent", "success");
       router.replace("/(tabs)/history");
@@ -145,7 +186,14 @@ export default function FaultCodesScreen() {
     outputRange: ["0%", "100%"],
   });
 
-  const hasFaults = !!faults && faults.length > 0;
+  const faults = report?.faults ?? [];
+  const hasFaults = faults.length > 0;
+  // "Nothing was found" and "nothing could be read" are different answers,
+  // and only the coverage list can tell them apart. Without this check an
+  // ECU that refuses every request would render as a clean bill of health.
+  const readable =
+    report?.coverage.some((c) => c.status === "ok" || c.status === "empty") ??
+    false;
 
   return (
     <View style={styles.root}>
@@ -166,14 +214,14 @@ export default function FaultCodesScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      {scanning ? (
+      {phase === "scanning" && (
         <View style={styles.scanning} testID="scanning-view">
           <View style={styles.scanRing}>
             <MaterialCommunityIcons name="radar" size={56} color={colors.brand} />
           </View>
           <Text style={styles.scanTitle}>Reading fault codes…</Text>
           <Text style={styles.scanStep} testID="scan-step">
-            {CHECK_STEPS[stepIndex]}
+            {step.stage}
           </Text>
           <View style={styles.progressTrack}>
             <Animated.View style={[styles.progressFill, { width: widthInterp }]} />
@@ -182,7 +230,31 @@ export default function FaultCodesScreen() {
             Do not disconnect the adapter during the scan.
           </Text>
         </View>
-      ) : (
+      )}
+
+      {phase === "error" && (
+        <View style={styles.scanning} testID="scan-error-view">
+          <View style={[styles.scanRing, { borderColor: colors.error }]}>
+            <MaterialCommunityIcons
+              name="alert-circle-outline"
+              size={56}
+              color={colors.error}
+            />
+          </View>
+          <Text style={styles.scanTitle}>Scan failed</Text>
+          <Text style={styles.errorText}>{scanError}</Text>
+          <View style={styles.retry}>
+            <NeonButton
+              testID="retry-scan-button"
+              label="Retry scan"
+              icon="refresh"
+              onPress={() => void scan()}
+            />
+          </View>
+        </View>
+      )}
+
+      {phase === "done" && report && (
         <>
           <ScrollView
             contentContainerStyle={{
@@ -199,9 +271,37 @@ export default function FaultCodesScreen() {
                 color={colors.onSurfaceTertiary}
               />
               <Text style={styles.vehicleText}>
-                {vehicle.make} {vehicle.model} · {vehicle.year}
+                {vehicle.make} {vehicle.model}
+                {/* An unread year is 0, and "· 0" reads as a real model year. */}
+                {vehicle.year > 0 ? ` · ${vehicle.year}` : ""}
               </Text>
             </View>
+
+            {report.mileage !== null && (
+              <View style={styles.chipRow}>
+                <View style={styles.odoChip} testID="odometer">
+                  <MaterialCommunityIcons
+                    name="counter"
+                    size={14}
+                    color={colors.brand}
+                  />
+                  <Text style={styles.odoText}>
+                    {groupDigits(report.mileage)} km
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {report.status?.milOn && (
+              <View style={styles.milBanner} testID="mil-banner">
+                <MaterialCommunityIcons
+                  name="engine-outline"
+                  size={22}
+                  color={colors.warning}
+                />
+                <Text style={styles.milText}>Check engine light is ON</Text>
+              </View>
+            )}
 
             {hasFaults ? (
               <>
@@ -212,14 +312,14 @@ export default function FaultCodesScreen() {
                     color={colors.warning}
                   />
                   <Text style={styles.summaryText}>
-                    {faults!.length} fault{faults!.length > 1 ? "s" : ""} found
+                    {faults.length} fault{faults.length > 1 ? "s" : ""} found
                   </Text>
                 </View>
-                {faults!.map((f) => (
-                  <FaultRow key={f.code} fault={f} />
+                {faults.map((f) => (
+                  <FaultRow key={`${f.code}-${f.status ?? "stored"}-${f.moduleId ?? "x"}`} fault={f} />
                 ))}
               </>
-            ) : (
+            ) : readable ? (
               <View style={styles.clean} testID="no-faults-view">
                 <View style={styles.checkCircle}>
                   <MaterialCommunityIcons
@@ -234,6 +334,81 @@ export default function FaultCodesScreen() {
                   diagnostic check.
                 </Text>
               </View>
+            ) : (
+              <View style={styles.clean} testID="nothing-read-view">
+                <View style={[styles.checkCircle, { borderColor: colors.warning, backgroundColor: `${colors.warning}14` }]}>
+                  <MaterialCommunityIcons
+                    name="help-circle-outline"
+                    size={64}
+                    color={colors.warning}
+                  />
+                </View>
+                <Text style={styles.cleanTitle}>Nothing could be read</Text>
+                <Text style={styles.cleanSub}>
+                  The adapter answered, but this vehicle did not return any
+                  fault-code data. That is not a clean bill of health — see
+                  what each request returned below.
+                </Text>
+              </View>
+            )}
+
+            {report.notes.length > 0 && (
+              <View style={styles.notes} testID="notes-list">
+                {report.notes.map((note) => (
+                  <View key={note} style={styles.noteRow}>
+                    <MaterialCommunityIcons
+                      name="information-outline"
+                      size={15}
+                      color={colors.onSurfaceTertiary}
+                    />
+                    <Text style={styles.noteText}>{note}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <Text style={styles.sectionTitle}>What was read</Text>
+            <View style={styles.coverage} testID="coverage-list">
+              {report.coverage.map((c) => (
+                <CoverageRow
+                  key={c.request}
+                  request={c.request}
+                  label={c.label}
+                  status={c.status}
+                  detail={c.detail}
+                />
+              ))}
+            </View>
+
+            {report.rawLines.length > 0 && (
+              <>
+                <Pressable
+                  testID="raw-toggle"
+                  onPress={() => setShowRaw((v) => !v)}
+                  style={styles.rawToggle}
+                >
+                  <MaterialCommunityIcons
+                    name={showRaw ? "chevron-down" : "chevron-right"}
+                    size={18}
+                    color={colors.onSurfaceTertiary}
+                  />
+                  <Text style={styles.rawToggleText}>
+                    Adapter output ({report.rawLines.length} lines)
+                  </Text>
+                </Pressable>
+                {showRaw && (
+                  <ScrollView
+                    testID="raw-lines"
+                    style={styles.rawBox}
+                    contentContainerStyle={{ padding: spacing.md }}
+                    nestedScrollEnabled
+                  >
+                    <Text style={styles.rawText}>
+                      {report.rawLines.join("\n")}
+                    </Text>
+                  </ScrollView>
+                )}
+              </>
             )}
           </ScrollView>
 
@@ -270,7 +445,7 @@ const styles = StyleSheet.create({
     fontSize: type.xl,
     letterSpacing: 0.5,
   },
-  // scanning
+  // scanning / error
   scanning: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   scanRing: {
     width: 120,
@@ -295,6 +470,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginTop: spacing.sm,
     marginBottom: spacing.xl,
+    textAlign: "center",
   },
   progressTrack: {
     width: "100%",
@@ -311,12 +487,56 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     textAlign: "center",
   },
+  errorText: {
+    color: colors.onSurfaceTertiary,
+    fontFamily: font.regular,
+    fontSize: type.base,
+    textAlign: "center",
+    lineHeight: 20,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  retry: { alignSelf: "stretch", marginTop: spacing.xl },
   // results
   vehicleLine: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   vehicleText: {
     color: colors.onSurfaceTertiary,
     fontFamily: font.medium,
     fontSize: type.base,
+  },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  odoChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: `${colors.brand}55`,
+    backgroundColor: `${colors.brand}12`,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  odoText: {
+    color: colors.brand,
+    fontFamily: font.displaySemi,
+    fontSize: type.base,
+    letterSpacing: 0.5,
+  },
+  milBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: `${colors.warning}18`,
+    borderWidth: 1,
+    borderColor: `${colors.warning}55`,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+  },
+  milText: {
+    color: colors.warning,
+    fontFamily: font.displaySemi,
+    fontSize: type.xl,
+    letterSpacing: 0.5,
   },
   summaryBanner: {
     flexDirection: "row",
@@ -334,53 +554,89 @@ const styles = StyleSheet.create({
     fontSize: type.xl,
     letterSpacing: 0.5,
   },
-  faultRow: {
-    flexDirection: "row",
-    gap: spacing.md,
+  // notes
+  notes: { gap: spacing.sm },
+  noteRow: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
+  noteText: {
+    flex: 1,
+    color: colors.onSurfaceTertiary,
+    fontFamily: font.regular,
+    fontSize: type.sm,
+    lineHeight: 18,
+  },
+  // coverage
+  sectionTitle: {
+    color: colors.onSurfaceTertiary,
+    fontFamily: font.displaySemi,
+    fontSize: type.lg,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginTop: spacing.sm,
+  },
+  coverage: {
     backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
-  codeBox: {
-    borderWidth: 1.5,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 74,
-    alignSelf: "flex-start",
-  },
-  code: { fontFamily: font.display, fontSize: type.xl, letterSpacing: 0.5 },
-  faultHead: {
+  covRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: spacing.sm,
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.divider,
   },
-  severity: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  sevDot: { width: 7, height: 7, borderRadius: 4 },
-  sevText: {
+  covReq: {
+    color: colors.onSurface,
+    fontFamily: MONO,
+    fontSize: type.sm,
+    minWidth: 38,
+  },
+  covLabel: {
+    color: colors.onSurfaceSecondary,
+    fontFamily: font.regular,
+    fontSize: type.base,
+  },
+  covDetail: {
+    color: colors.onSurfaceTertiary,
+    fontFamily: font.regular,
+    fontSize: type.sm,
+    marginTop: 2,
+  },
+  covStatus: {
     fontFamily: font.semibold,
     fontSize: type.sm,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  faultTitle: {
-    color: colors.onSurface,
-    fontFamily: font.semibold,
-    fontSize: type.lg,
-    marginBottom: spacing.xs,
+  // raw adapter output
+  rawToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
   },
-  faultDesc: {
+  rawToggleText: {
     color: colors.onSurfaceTertiary,
-    fontFamily: font.regular,
-    fontSize: type.base,
-    lineHeight: 20,
+    fontFamily: font.medium,
+    fontSize: type.sm,
   },
-  // clean
+  rawBox: {
+    maxHeight: 220,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+  },
+  rawText: {
+    color: colors.onSurfaceTertiary,
+    fontFamily: MONO,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  // clean / nothing-read
   clean: { alignItems: "center", paddingTop: spacing["3xl"], gap: spacing.md },
   checkCircle: {
     width: 128,

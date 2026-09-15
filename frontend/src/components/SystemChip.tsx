@@ -1,8 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { GROUP_LABELS } from "@/src/demo/obd";
-import { colors, font, groupColor, radius, spacing, type } from "@/src/theme";
+import { font, groupColor, GROUP_LABELS, radius, spacing, type } from "@/src/theme";
 
 export default function SystemChip({ group }: { group: string }) {
   const c = groupColor(group);
