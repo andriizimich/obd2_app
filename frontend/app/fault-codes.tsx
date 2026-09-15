@@ -19,6 +19,7 @@ import { useToast } from "@/src/components/Toast";
 import { useObd } from "@/src/context/ObdContext";
 import type { Fault } from "@/src/demo/obd";
 import { createScan } from "@/src/api/client";
+import { sendReport } from "@/src/api/telegram";
 import { colors, font, groupColor, radius, spacing, type } from "@/src/theme";
 
 const CHECK_STEPS = [
@@ -123,18 +124,20 @@ export default function FaultCodesScreen() {
     if (!faults) return;
     setSending(true);
     try {
-      await createScan({
-        vehicle,
-        faults,
-        device_name: device?.name ?? null,
-      });
+      await sendReport(vehicle, faults);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      toast("Check result saved", "success");
+      toast("Check result sent", "success");
       router.replace("/(tabs)/history");
-    } catch (e) {
-      toast("Failed to save result. Try again.", "error");
+    } catch {
+      toast("Failed to send result. Try again.", "error");
       setSending(false);
     }
+    // The FastAPI backend is not deployed right now, so this save cannot land —
+    // fired without awaiting so a dead endpoint never blocks or fails the report.
+    // Delete this block if the API stays retired; restore the await if it ships.
+    createScan({ vehicle, faults, device_name: device?.name ?? null }).catch(
+      () => {},
+    );
   };
 
   const widthInterp = progress.interpolate({
