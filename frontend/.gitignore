@@ -37,4 +37,9 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Local EAS builds land here as build-<timestamp>.apk, ~112 MB each. They are
+# never committed, and without this every build adds a file that shows up in
+# `git status` forever.
+build-*.apk
+
 app-example

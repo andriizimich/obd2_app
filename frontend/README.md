@@ -73,7 +73,9 @@ Install the resulting APK on the phone, plug the adapter into the car's OBD-II
 port, turn the ignition on and search. If you have Android Studio installed,
 `npx expo run:android` builds the dev client locally instead.
 
-Permissions are injected automatically by the `react-native-ble-plx` config plugin in `app.json` (`BLUETOOTH_SCAN`/`CONNECT` on Android 12+, location only below API 31, `NSBluetoothAlwaysUsageDescription` on iOS).
+Permissions are injected automatically by the `react-native-ble-plx` config plugin in `app.json` (`BLUETOOTH_SCAN`/`CONNECT` on Android 12+, `NSBluetoothAlwaysUsageDescription` on iOS). The location permissions the BLE library asks for are stripped again by `plugins/without-location.js` — this app reads a car, not a position. The price is Android 11 and older, where a BLE scan needs the location grant: `ensureBleReady` refuses to scan there and says so, rather than requesting a permission the manifest does not declare.
+
+When the handshake fails, the error carries what the adapter actually replied (or how the write failed), not just "no answer" — that string is the only diagnostic a failed connect leaves behind.
 
 ### What the offline suites do not prove
 
