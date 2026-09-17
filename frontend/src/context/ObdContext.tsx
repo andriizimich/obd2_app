@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 
 import type { Identification } from "@/src/obd/identify";
-import { unidentified } from "@/src/obd/identify";
+import { identifyVehicle, unidentified } from "@/src/obd/identify";
 import type { ObdTransport } from "@/src/obd/transport";
+import { isFullVin } from "@/src/utils/vin";
 import type {
   DiagnosticReport,
   DiagnosticsOptions,
@@ -36,6 +37,29 @@ type ObdState = {
 };
 
 const ObdCtx = createContext<ObdState | null>(null);
+
+/**
+ * Every module address a pass heard from.
+ *
+ * The scan is the one thing in this app that has already looked at who is on
+ * the bus: fault codes arrive addressed, and PID 01 is answered by every
+ * module that exists. Those addresses are what the VIN read needs to ask each
+ * controller for the VIN on its own instead of broadcasting at all of them at
+ * once and reading their frames interleaved.
+ *
+ * Empty is a normal answer — a car with no codes and no module split has
+ * named nobody, and the VIN read then simply does not happen that way.
+ */
+function moduleAddressesIn(report: DiagnosticReport): number[] {
+  const addresses = new Set<number>();
+  for (const fault of report.faults) {
+    if (typeof fault.moduleId === "number") addresses.add(fault.moduleId);
+  }
+  for (const module of report.status?.modules ?? []) {
+    if (typeof module.moduleId === "number") addresses.add(module.moduleId);
+  }
+  return [...addresses];
+}
 
 export function ObdProvider({ children }: { children: React.ReactNode }) {
   const [device, setDevice] = useState<ObdDevice | null>(null);
@@ -80,6 +104,36 @@ export function ObdProvider({ children }: { children: React.ReactNode }) {
       runScan: async (opts) => {
         if (!transport) throw new Error("Adapter is not connected.");
         const result = await transport.readDiagnostics(opts);
+        // Mode 09 is answered by the same ECUs the pass just heard from, so
+        // a car that answered now can be asked again. This matters because
+        // connecting is done before the engine is started: the first read
+        // gets nothing, and without a second one the whole report carries
+        // the identity of a key-off car — no make, no model, no VIN.
+        //
+        // A fragment counts as nothing here. `!vehicle?.vin` was the old
+        // test, and it skipped the one car the second read exists for: five
+        // characters off a KWP2000 frame are truthy, so the car that gave
+        // `B3338` was never asked again, and the sweep written to look under
+        // the neighbouring options could not run at all.
+        if (!isFullVin(vehicle?.vin ?? "")) {
+          opts?.onProgress?.({ stage: "Identifying the vehicle…", index: 1, total: 1 });
+          try {
+            // Here, and only here, the read may spend twelve seconds probing
+            // the identification block: the codes are already in `result`, and
+            // a bus this pass has just talked to is the one moment in the app
+            // where nothing else is waiting on it.
+            const again = await identifyVehicle(transport, {
+              sweepIdentification: true,
+              moduleAddresses: moduleAddressesIn(result),
+            });
+            if (again.vehicle.vin) {
+              setVehicle(again.vehicle);
+              setEvidence(again.evidence);
+            }
+          } catch {
+            // Best effort: the report stands without a name on it.
+          }
+        }
         setReport(result);
         return result;
       },

@@ -1,4 +1,6 @@
+import { BUILD_STAMP } from "@/src/build";
 import { groupDigits } from "@/src/format";
+import { isFullVin, VIN_LENGTH } from "@/src/utils/vin";
 import type { Coverage, DiagnosticReport, Fault, Vehicle } from "@/src/obd/types";
 
 // Baked into the bundle at build time from EAS env vars (preview/production).
@@ -20,11 +22,6 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const MAX_LEN = 3500;
 const MAX_FAULT_LINES = 12;
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: "pending",
-  permanent: "permanent",
-};
-
 /** One line per read: what was asked, and what came back. This is the part
  *  that says whether "no codes" means a healthy car or an unanswered ECU. */
 const COVERAGE_MARK: Record<Coverage["status"], string> = {
@@ -38,14 +35,101 @@ const COVERAGE_MARK: Record<Coverage["status"], string> = {
 function coverageLine(coverage: Coverage[]): string {
   if (coverage.length === 0) return "";
   const parts = coverage.map((c) => `${c.request} ${COVERAGE_MARK[c.status]}`);
-  return `Read: ${parts.join(" · ")}`;
+  return `📋 Read: ${parts.join(" · ")}`;
 }
 
+/** Longer than any real reason; a wall of adapter text in a chat message
+ *  helps nobody, and the field is only ever a phrase. */
+const MAX_DETAIL = 110;
+
+/**
+ * Why each read came back empty — printed only when none of them worked.
+ *
+ * `03 ✗ · 07 ✗ · 0A ✗` is a footnote while the pass mostly succeeds. When
+ * every mark is ✗ it is the entire message and it explains nothing, and the
+ * five reasons behind those marks are different facts that call for
+ * different things from the driver: `NO DATA` (the car does not do that),
+ * `UNABLE TO CONNECT` (nothing answered on the bus at all — check the
+ * ignition), a bare timeout (the adapter never finished), a negative
+ * response (the ECU refused). The pass already knows which one it was; this
+ * is that sentence, and without it the failure report says only "it did not
+ * work".
+ *
+ * Gated on the all-✗ case on purpose. Under five ✓ marks the same lines would
+ * push the fault list — the thing the message exists for — off the screen.
+ */
+function failureLines(coverage: Coverage[]): string[] {
+  return coverage
+    .filter((c) => c.status === "error" || c.status === "unsupported")
+    .slice(0, 6)
+    .map((c) => {
+      const detail = c.detail ?? "no reason given";
+      const short =
+        detail.length > MAX_DETAIL ? `${detail.slice(0, MAX_DETAIL - 1)}…` : detail;
+      return `   • ${c.request} — ${short}`;
+    });
+}
+
+/** How much of the adapter's own output a failure report carries. */
+const MAX_RAW_LINES = 12;
+
+/**
+ * The adapter's own words, when nothing could be read.
+ *
+ * "No readable reply" is the same sentence for two opposite situations: the
+ * adapter sent nothing at all (only its prompt), or it sent bytes that this
+ * app's parsers did not recognise. The first is an adapter or wiring problem,
+ * the second is a parsing bug — and the coverage line cannot tell them apart,
+ * because by the time the detail is built the difference has been thrown
+ * away. The raw lines still carry it, so they ride along.
+ *
+ * Printed only when the pass read nothing. On a working car these lines are
+ * the traffic the message is already summarising, and repeating it there
+ * would bury the fault list.
+ */
+function rawLineBlock(rawLines: string[]): string[] {
+  const shown = rawLines
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && line !== ">")
+    .slice(0, MAX_RAW_LINES);
+  // An empty transcript is itself the finding: the adapter answered the AT
+  // commands and then had nothing whatsoever to say about the vehicle.
+  if (shown.length === 0) {
+    return ["🔧 Adapter output: none — not a single data line came back"];
+  }
+  return [
+    "🔧 Adapter output:",
+    ...shown.map((line) =>
+      `   | ${line.length > MAX_DETAIL ? `${line.slice(0, MAX_DETAIL - 1)}…` : line}`,
+    ),
+  ];
+}
+
+/**
+ * One fault, exactly one line — the shape the reader asked for.
+ *
+ * What belongs on the line is settled by what a person does with it: the
+ * code identifies the fault, the title says what it means, and the module
+ * says whose fault it is on a car with more than one. `stored` is left off
+ * because it is the default, and a bracket that is always there stops being
+ * read.
+ */
 function faultLine(fault: Fault): string {
-  const where = fault.module ? ` ${fault.module}` : "";
-  const status = fault.status ? STATUS_LABEL[fault.status] : undefined;
-  const tag = status ? ` [${status}]` : "";
-  return `• ${fault.code}${where} — ${fault.title}${tag}`;
+  const title = fault.title?.trim() || "unknown code";
+  const qualifiers = [
+    fault.status && fault.status !== "stored" ? fault.status : null,
+    fault.module ?? null,
+    // A code the dictionary does not hold is titled with the category its own
+    // bytes name — `P1246` comes out as "Fuel and air metering (injector
+    // circuit)" — and on this line there is no second paragraph to say that
+    // the dictionary never decoded it. The results screen can afford to let
+    // `description` do the talking; a line in a chat cannot, and without this
+    // the category reads as a diagnosis. Stated only for a definite `false`:
+    // a fault built by hand carries no verdict either way.
+    fault.known === false ? "not decoded" : null,
+  ].filter(Boolean);
+  const tag = qualifiers.length > 0 ? ` [${qualifiers.join(" · ")}]` : "";
+  return `• ${fault.code} — ${title}${tag}`;
 }
 
 /**
@@ -55,16 +139,54 @@ function faultLine(fault: Fault): string {
 export function reportText(vehicle: Vehicle, report: DiagnosticReport): string {
   const head: string[] = ["🚗 Radacini OBD"];
 
-  const name = [vehicle.make, vehicle.model].filter(Boolean).join(" ");
-  const identity = [name, vehicle.vin].filter(Boolean).join(" · ");
-  head.push(`VIN: ${escapeHtml(identity || "not read")}`);
+  // "Unknown" is what an undecoded vehicle carries — a placeholder, not a
+  // name. Joining it into a `VIN:` line is how the report came to state a
+  // VIN it had never read; each fact gets its own line, and a fact that was
+  // not read gets no line at all.
+  const name = [vehicle.make, vehicle.model]
+    .filter((part) => part && part !== "Unknown")
+    .join(" ");
+  const title = [name, vehicle.year > 0 ? String(vehicle.year) : ""]
+    .filter(Boolean)
+    .join(" · ");
+
+  if (title) head.push(`🚘 ${escapeHtml(title)}`);
+  // A fragment is not a VIN. Five characters off a KWP2000 frame went out as
+  // `🔑 VIN: B3338` — a report stating a VIN the car never gave — while the
+  // dashboard printed the same five characters as "Partial VIN · 5 of 17".
+  // The line is kept either way, because a report that drops what the ECU did
+  // answer is worse than one that labels it; the label is the fix.
+  if (vehicle.vin) {
+    const vin = vehicle.vin.trim();
+    head.push(
+      isFullVin(vin)
+        ? `🔑 VIN: ${escapeHtml(vin)}`
+        : `🔑 Partial VIN: ${escapeHtml(vin)} (${vin.length} of ${VIN_LENGTH} characters)`,
+    );
+  }
+
+  // Nothing was decoded and no VIN came back. The line says only what is
+  // known — no VIN was read — because that is all that was observed. It used
+  // to read "the ECU returned no VIN", which picks one of two very different
+  // situations and picked wrong on a bus that answered nothing at all: the
+  // result is identical, and the message blamed the car for the adapter's
+  // silence. Which of the two it was is a fact for the identification screen,
+  // not a guess to print here.
+  //
+  // It also no longer names `09 02`. Two questions are asked for a VIN now —
+  // the standard PID and the maker's KWP2000 service — and this line prints
+  // only when *both* came back empty, so naming one of them would send the
+  // reader to look at a read that is not the only one that failed.
+  if (!title && !vehicle.vin) {
+    head.push("🚘 Vehicle: not identified — no VIN was read");
+  }
 
   // A missing odometer prints no line at all: "Mileage: —" reads as "about
   // zero", while an absent line reads as "not reported".
   if (report.mileage !== null) {
-    head.push(`Mileage: ${groupDigits(report.mileage)} km`);
+    head.push(`🛣 Mileage: ${groupDigits(report.mileage)} km`);
   }
-  if (report.protocol) head.push(escapeHtml(report.protocol));
+  if (report.protocol) head.push(`🔌 ${escapeHtml(report.protocol)}`);
 
   const opening: string[] = [];
 
@@ -75,7 +197,7 @@ export function reportText(vehicle: Vehicle, report: DiagnosticReport): string {
     (c) => c.status === "ok" || c.status === "empty",
   );
 
-  if (report.status?.milOn) opening.push("⚠️ Check engine light ON");
+  if (report.status?.milOn) opening.push("⚠️ Check engine light: ON");
 
   const counts = [
     ["stored", report.faults.filter((f) => !f.status || f.status === "stored").length],
@@ -106,10 +228,17 @@ export function reportText(vehicle: Vehicle, report: DiagnosticReport): string {
   const noteLines = report.notes.slice(0, 3).map((n) => `ℹ️ ${escapeHtml(n)}`);
   const coverage = coverageLine(report.coverage);
   const coverageLines = coverage ? [escapeHtml(coverage)] : [];
+  // The reasons ride with the roll call rather than with the notes, because
+  // the trimming ladder drops the notes first and these must survive: in the
+  // all-✗ case they are the only part of the message that is worth reading.
+  if (!readSomething) {
+    coverageLines.push(...failureLines(report.coverage).map(escapeHtml));
+    coverageLines.push(...rawLineBlock(report.rawLines ?? []).map(escapeHtml));
+  }
 
   // Device-local time — the phone knows the driver's timezone, the server never did.
   const d = new Date(report.at);
-  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())} · build ${BUILD_STAMP}`;
 
   const assemble = (body: string[]) => `${head.join("\n")}\n\n${[...body, stamp].join("\n")}`;
 

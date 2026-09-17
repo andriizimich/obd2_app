@@ -6,12 +6,6 @@ import SystemChip from "@/src/components/SystemChip";
 import type { DtcStatus, Fault } from "@/src/obd/types";
 import { colors, font, groupColor, radius, spacing, type } from "@/src/theme";
 
-const SEVERITY_COLOR: Record<string, string> = {
-  high: colors.error,
-  medium: colors.warning,
-  low: colors.onSurfaceTertiary,
-};
-
 /** Only the two lists that are not the default get a badge — "stored" is
  *  what a code is assumed to be, so labelling it would be noise. */
 const STATUS_LABEL: Partial<Record<DtcStatus, string>> = {
@@ -23,15 +17,16 @@ const STATUS_LABEL: Partial<Record<DtcStatus, string>> = {
  * One fault code. Shared by the results screen and a saved scan so the two
  * cannot drift apart — they were separate copies of the same layout before.
  *
- * Two things are drawn as estimates rather than facts, and they look it:
- * severity is our guess from the code's shape (no ECU reports severity),
- * and `known: false` says the title came from the code's own bytes rather
- * than a dictionary entry for it.
+ * What the ECU actually said is a code, a list and a module; the title and
+ * description behind the code come from the bundled dictionary, and
+ * `known: false` says there was no entry for it rather than that the code is
+ * harmless. Severity used to be drawn here too — our guess from the code's
+ * shape, which no ECU reports — and it went: a badge a driver reads as a
+ * measurement has to be one.
  */
 export default function FaultRow({ fault }: { fault: Fault }) {
   const [showCauses, setShowCauses] = useState(false);
   const c = groupColor(fault.group);
-  const sevColor = SEVERITY_COLOR[fault.severity] ?? colors.onSurfaceTertiary;
   const status = fault.status ? STATUS_LABEL[fault.status] : undefined;
   const causes = fault.causes ?? [];
 
@@ -59,14 +54,6 @@ export default function FaultRow({ fault }: { fault: Fault }) {
                 </Text>
               </View>
             )}
-            <View style={styles.severity}>
-              {/* An outlined dot: the severity is inferred from the code, the
-                  car never said it. A filled dot would read as a measurement. */}
-              <View style={[styles.sevDot, { borderColor: sevColor }]} />
-              <Text style={[styles.sevText, { color: sevColor }]}>
-                {fault.severity}
-              </Text>
-            </View>
           </View>
         </View>
 
@@ -154,14 +141,6 @@ const styles = StyleSheet.create({
   tagText: {
     fontFamily: font.semibold,
     fontSize: 10,
-    letterSpacing: 0.5,
-  },
-  severity: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  sevDot: { width: 7, height: 7, borderRadius: 4, borderWidth: 1.5 },
-  sevText: {
-    fontFamily: font.semibold,
-    fontSize: type.sm,
-    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   title: {

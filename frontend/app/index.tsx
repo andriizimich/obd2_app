@@ -122,7 +122,17 @@ function DeviceCard({
         <Text style={styles.deviceName} numberOfLines={1}>
           {device.name}
         </Text>
-        <Text style={styles.deviceAddr}>{device.address}</Text>
+        <View style={styles.deviceMeta}>
+          <Text style={styles.deviceAddr}>{device.address}</Text>
+          {/* A dual-mode adapter shows up twice under the same name — once
+              over SPP, once over BLE — so the two rows have to be told
+              apart or the list is a coin flip. */}
+          <View style={styles.deviceKind}>
+            <Text style={styles.deviceKindText}>
+              {device.kind === "classic" ? "SPP" : "BLE"}
+            </Text>
+          </View>
+        </View>
       </View>
       {device.rssi != null && (
         <View style={styles.signal}>
@@ -229,7 +239,7 @@ export default function ConnectScreen() {
     // pass over this same connection.
     connect(device, identification, transport);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace("/(tabs)/dashboard");
+    router.replace("/dashboard");
   };
 
   const retry = reset;
@@ -254,9 +264,14 @@ export default function ConnectScreen() {
       case "connecting":
         return {
           title: "Connecting…",
+          // The adapter is bonded before the socket is opened, so this wait
+          // is routinely the system PIN dialog being answered. Saying so on
+          // the screen behind the dialog is the difference between a prompt
+          // and an apparent hang.
           sub: connectingTo
-            ? `Linking with ${connectingTo.name} and verifying the ELM327 handshake.`
-            : "Establishing a link with the OBD-II adapter.",
+            ? `Linking with ${connectingTo.name} and verifying the ELM327 handshake. ` +
+              `A first-time adapter asks for a PIN — 1234 or 0000.`
+            : "Establishing a link with the OBD-II adapter. A first-time adapter asks for a PIN — 1234 or 0000.",
         };
       case "error":
         return { title: "Connection failed", sub: errorText(errorKind).sub };
@@ -439,7 +454,7 @@ function errorText(kind: ErrorKind | null): { sub: string; tips: string[] } {
       return {
         sub: "Bluetooth permission is required to find adapters.",
         tips: [
-          "Allow “Nearby devices” (Android 12+) or location permission in system settings for this app.",
+          "Allow “Nearby devices” in system settings for this app.",
           "Retry the search after granting permission.",
         ],
       };
@@ -584,11 +599,29 @@ const styles = StyleSheet.create({
     fontSize: type.base,
     flexShrink: 1,
   },
+  deviceMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: 2,
+  },
   deviceAddr: {
     color: colors.onSurfaceTertiary,
     fontFamily: font.regular,
     fontSize: type.sm,
-    marginTop: 2,
+  },
+  deviceKind: {
+    borderWidth: 1,
+    borderColor: colors.brand,
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  deviceKindText: {
+    color: colors.brand,
+    fontFamily: font.displayMed,
+    fontSize: 10,
+    letterSpacing: 0.5,
   },
   signal: { alignItems: "flex-end" },
   signalText: {

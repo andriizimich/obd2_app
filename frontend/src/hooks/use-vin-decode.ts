@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { decodeVinRemote, VinDecodeOk, VinDecodePartial } from "@/src/api/vpic";
-import { validateVin } from "@/src/utils/vin";
+import { isFullVin } from "@/src/utils/vin";
 
 export type VinDecodeState =
   | { status: "idle" } // vin null or locally invalid
@@ -17,7 +17,10 @@ export function useVinDecode(vin: string | null): {
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
-    if (!vin || !validateVin(vin).valid) {
+    // 17 legal characters is what the decoder needs. The North-American
+    // check digit is deliberately not part of this test: vPIC decodes a
+    // European VIN anyway and says so in its own error code.
+    if (!vin || !isFullVin(vin)) {
       setState({ status: "idle" });
       return;
     }

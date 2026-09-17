@@ -5,7 +5,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,9 +17,7 @@ import FaultRow from "@/src/components/FaultRow";
 import NeonButton from "@/src/components/NeonButton";
 import { useToast } from "@/src/components/Toast";
 import { useObd } from "@/src/context/ObdContext";
-import { groupDigits } from "@/src/format";
-import type { CoverageStatus, DiagnosticReport } from "@/src/obd/types";
-import { createScan } from "@/src/api/client";
+import type { DiagnosticReport } from "@/src/obd/types";
 import { sendReport } from "@/src/api/telegram";
 import { colors, font, radius, spacing, type } from "@/src/theme";
 
@@ -32,67 +29,17 @@ import { colors, font, radius, spacing, type } from "@/src/theme";
  */
 const MIN_SCAN_MS = 800;
 
-type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
-
-const MONO = Platform.select({ ios: "Menlo", default: "monospace" });
-
-/**
- * How each coverage status reads on screen. `empty` and `unsupported` must
- * never look the same: "no pending codes" is good news, "this ECU does not
- * answer 07" is a missing reading.
- */
-const COVERAGE_META: Record<
-  CoverageStatus,
-  { icon: IconName; color: string; text: string }
-> = {
-  ok: { icon: "check-circle-outline", color: colors.success, text: "read" },
-  empty: { icon: "minus-circle-outline", color: colors.onSurfaceTertiary, text: "none" },
-  unsupported: {
-    icon: "help-circle-outline",
-    color: colors.onSurfaceTertiary,
-    text: "not supported",
-  },
-  error: { icon: "alert-circle-outline", color: colors.error, text: "failed" },
-  skipped: { icon: "clock-outline", color: colors.onSurfaceTertiary, text: "skipped" },
-};
-
-function CoverageRow({
-  request,
-  label,
-  status,
-  detail,
-}: {
-  request: string;
-  label: string;
-  status: CoverageStatus;
-  detail?: string;
-}) {
-  const meta = COVERAGE_META[status];
-  return (
-    <View style={styles.covRow} testID={`coverage-${request}`}>
-      <MaterialCommunityIcons name={meta.icon} size={16} color={meta.color} />
-      <Text style={styles.covReq}>{request}</Text>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.covLabel}>{label}</Text>
-        {!!detail && <Text style={styles.covDetail}>{detail}</Text>}
-      </View>
-      <Text style={[styles.covStatus, { color: meta.color }]}>{meta.text}</Text>
-    </View>
-  );
-}
-
 export default function FaultCodesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const toast = useToast();
-  const { vehicle, device, runScan } = useObd();
+  const { vehicle, runScan } = useObd();
 
   const [phase, setPhase] = useState<"scanning" | "done" | "error">("scanning");
   const [step, setStep] = useState({ stage: "Contacting the adapter…", index: 0, total: 0 });
   const [report, setReport] = useState<DiagnosticReport | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [showRaw, setShowRaw] = useState(false);
 
   const progress = useRef(new Animated.Value(0)).current;
   const started = useRef(false);
@@ -162,23 +109,16 @@ export default function FaultCodesScreen() {
 
   const onSend = async () => {
     if (!report) return;
-    const faults = report.faults;
     setSending(true);
     try {
       await sendReport(vehicle, report);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       toast("Check result sent", "success");
-      router.replace("/(tabs)/history");
+      router.replace("/dashboard");
     } catch {
       toast("Failed to send result. Try again.", "error");
       setSending(false);
     }
-    // The FastAPI backend is not deployed right now, so this save cannot land —
-    // fired without awaiting so a dead endpoint never blocks or fails the report.
-    // Delete this block if the API stays retired; restore the await if it ships.
-    createScan({ vehicle, faults, device_name: device?.name ?? null }).catch(
-      () => {},
-    );
   };
 
   const widthInterp = progress.interpolate({
@@ -191,9 +131,20 @@ export default function FaultCodesScreen() {
   // "Nothing was found" and "nothing could be read" are different answers,
   // and only the coverage list can tell them apart. Without this check an
   // ECU that refuses every request would render as a clean bill of health.
+  // The list itself is no longer drawn — the report still carries it, and so
+  // does the chat — but the distinction it makes is not a display detail, so
+  // the computation stays.
   const readable =
     report?.coverage.some((c) => c.status === "ok" || c.status === "empty") ??
     false;
+  // The pipeline names an unknown car "Unknown" (`unidentifiedVehicle`), which
+  // is a placeholder for the code, not a word for a driver — and this line is
+  // now the whole identity on screen.
+  const named = !!vehicle.make && vehicle.make !== "Unknown";
+  const carName = vehicle.model ? `${vehicle.make} ${vehicle.model}` : vehicle.make;
+  // An unread year is 0, and "· 0" reads as a real model year.
+  const carLine =
+    vehicle.year > 0 ? `${carName} · ${vehicle.year}` : carName;
 
   return (
     <View style={styles.root}>
@@ -264,6 +215,11 @@ export default function FaultCodesScreen() {
             }}
             showsVerticalScrollIndicator={false}
           >
+            {/* The result is the car and the codes. Mileage, the lamp, the
+                list of requests and the adapter's own words are all in the
+                report — the chat shows them and the dashboard's evidence
+                panel shows the raw bytes — but none of them is what a driver
+                opened this screen to read. */}
             <View style={styles.vehicleLine}>
               <MaterialCommunityIcons
                 name="car"
@@ -271,37 +227,9 @@ export default function FaultCodesScreen() {
                 color={colors.onSurfaceTertiary}
               />
               <Text style={styles.vehicleText}>
-                {vehicle.make} {vehicle.model}
-                {/* An unread year is 0, and "· 0" reads as a real model year. */}
-                {vehicle.year > 0 ? ` · ${vehicle.year}` : ""}
+                {named ? carLine : "Vehicle not identified"}
               </Text>
             </View>
-
-            {report.mileage !== null && (
-              <View style={styles.chipRow}>
-                <View style={styles.odoChip} testID="odometer">
-                  <MaterialCommunityIcons
-                    name="counter"
-                    size={14}
-                    color={colors.brand}
-                  />
-                  <Text style={styles.odoText}>
-                    {groupDigits(report.mileage)} km
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {report.status?.milOn && (
-              <View style={styles.milBanner} testID="mil-banner">
-                <MaterialCommunityIcons
-                  name="engine-outline"
-                  size={22}
-                  color={colors.warning}
-                />
-                <Text style={styles.milText}>Check engine light is ON</Text>
-              </View>
-            )}
 
             {hasFaults ? (
               <>
@@ -346,69 +274,10 @@ export default function FaultCodesScreen() {
                 <Text style={styles.cleanTitle}>Nothing could be read</Text>
                 <Text style={styles.cleanSub}>
                   The adapter answered, but this vehicle did not return any
-                  fault-code data. That is not a clean bill of health — see
-                  what each request returned below.
+                  fault-code data. That is not a clean bill of health. Send the
+                  result — the report says what each request returned.
                 </Text>
               </View>
-            )}
-
-            {report.notes.length > 0 && (
-              <View style={styles.notes} testID="notes-list">
-                {report.notes.map((note) => (
-                  <View key={note} style={styles.noteRow}>
-                    <MaterialCommunityIcons
-                      name="information-outline"
-                      size={15}
-                      color={colors.onSurfaceTertiary}
-                    />
-                    <Text style={styles.noteText}>{note}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            <Text style={styles.sectionTitle}>What was read</Text>
-            <View style={styles.coverage} testID="coverage-list">
-              {report.coverage.map((c) => (
-                <CoverageRow
-                  key={c.request}
-                  request={c.request}
-                  label={c.label}
-                  status={c.status}
-                  detail={c.detail}
-                />
-              ))}
-            </View>
-
-            {report.rawLines.length > 0 && (
-              <>
-                <Pressable
-                  testID="raw-toggle"
-                  onPress={() => setShowRaw((v) => !v)}
-                  style={styles.rawToggle}
-                >
-                  <MaterialCommunityIcons
-                    name={showRaw ? "chevron-down" : "chevron-right"}
-                    size={18}
-                    color={colors.onSurfaceTertiary}
-                  />
-                  <Text style={styles.rawToggleText}>
-                    Adapter output ({report.rawLines.length} lines)
-                  </Text>
-                </Pressable>
-                {showRaw && (
-                  <ScrollView
-                    testID="raw-lines"
-                    style={styles.rawBox}
-                    contentContainerStyle={{ padding: spacing.md }}
-                    nestedScrollEnabled
-                  >
-                    <Text style={styles.rawText}>
-                      {report.rawLines.join("\n")}
-                    </Text>
-                  </ScrollView>
-                )}
-              </>
             )}
           </ScrollView>
 
@@ -504,40 +373,6 @@ const styles = StyleSheet.create({
     fontFamily: font.medium,
     fontSize: type.base,
   },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  odoChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    borderWidth: 1,
-    borderColor: `${colors.brand}55`,
-    backgroundColor: `${colors.brand}12`,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  odoText: {
-    color: colors.brand,
-    fontFamily: font.displaySemi,
-    fontSize: type.base,
-    letterSpacing: 0.5,
-  },
-  milBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: `${colors.warning}18`,
-    borderWidth: 1,
-    borderColor: `${colors.warning}55`,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-  },
-  milText: {
-    color: colors.warning,
-    fontFamily: font.displaySemi,
-    fontSize: type.xl,
-    letterSpacing: 0.5,
-  },
   summaryBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -553,88 +388,6 @@ const styles = StyleSheet.create({
     fontFamily: font.displaySemi,
     fontSize: type.xl,
     letterSpacing: 0.5,
-  },
-  // notes
-  notes: { gap: spacing.sm },
-  noteRow: { flexDirection: "row", gap: spacing.sm, alignItems: "flex-start" },
-  noteText: {
-    flex: 1,
-    color: colors.onSurfaceTertiary,
-    fontFamily: font.regular,
-    fontSize: type.sm,
-    lineHeight: 18,
-  },
-  // coverage
-  sectionTitle: {
-    color: colors.onSurfaceTertiary,
-    fontFamily: font.displaySemi,
-    fontSize: type.lg,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginTop: spacing.sm,
-  },
-  coverage: {
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-  },
-  covRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.divider,
-  },
-  covReq: {
-    color: colors.onSurface,
-    fontFamily: MONO,
-    fontSize: type.sm,
-    minWidth: 38,
-  },
-  covLabel: {
-    color: colors.onSurfaceSecondary,
-    fontFamily: font.regular,
-    fontSize: type.base,
-  },
-  covDetail: {
-    color: colors.onSurfaceTertiary,
-    fontFamily: font.regular,
-    fontSize: type.sm,
-    marginTop: 2,
-  },
-  covStatus: {
-    fontFamily: font.semibold,
-    fontSize: type.sm,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  // raw adapter output
-  rawToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-  },
-  rawToggleText: {
-    color: colors.onSurfaceTertiary,
-    fontFamily: font.medium,
-    fontSize: type.sm,
-  },
-  rawBox: {
-    maxHeight: 220,
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-  },
-  rawText: {
-    color: colors.onSurfaceTertiary,
-    fontFamily: MONO,
-    fontSize: 11,
-    lineHeight: 16,
   },
   // clean / nothing-read
   clean: { alignItems: "center", paddingTop: spacing["3xl"], gap: spacing.md },
