@@ -126,7 +126,7 @@ export function parseFrames(
     if (bytes.length === 0) continue;
 
     const raw = line.trim();
-    const head = headersOn ? readHeader(tokens, shape) : null;
+    const head = headersOn ? readHeader(tokens, bytes, shape) : null;
     if (!head) {
       out.push({ header: null, kind: "unknown", data: bytes, raw });
       continue;
@@ -134,7 +134,7 @@ export function parseFrames(
     out.push({
       header: head.header,
       kind: head.kind,
-      data: bytes.slice(head.addressBytes),
+      data: bytes.slice(head.addressBytes, bytes.length - head.trailingBytes),
       raw,
     });
   }
@@ -171,25 +171,145 @@ export function parseMessages(
   return groupByModule(parseFrames(lines, opts));
 }
 
+/** True when the final byte is the frame's checksum — the sum of every byte
+ *  before it, modulo 256. Measured true on all eight frames captured from a
+ *  KWP2000 car, which is what makes it usable as a signal. */
+function checksumMatches(bytes: number[]): boolean {
+  let sum = 0;
+  for (let i = 0; i < bytes.length - 1; i++) sum += bytes[i];
+  return (sum & 0xff) === bytes[bytes.length - 1];
+}
+
+/**
+ * The legacy `Fmt Target Source` header of a payload, if it starts with one.
+ *
+ * Split out of {@link readHeader} because it is also needed where the
+ * protocol is unknown: with headers off, the adapter still prints the three
+ * header bytes and the trailing checksum around every KWP2000 frame, and a
+ * checksum is only one unlucky byte away from being a legal VIN character.
+ * The caller has to be able to take the framing off without knowing whether
+ * the car is on ISO 9141 or KWP2000.
+ */
+function legacyHeader(
+  bytes: number[],
+): { header: number; trailingBytes: number } | null {
+  if (bytes.length < 4) return null;
+  const format = bytes[0];
+  const len = format & 0x3f;
+  const rest = bytes.length - 3;
+  if ((format & 0xc0) === 0 || len < 2 || Math.abs(len - rest) > 2) return null;
+  const trailing =
+    rest === len + 1 || (rest === len && checksumMatches(bytes)) ? 1 : 0;
+  return { header: bytes[2], trailingBytes: trailing };
+}
+
+/**
+ * One reply line → the payload it carries, with whatever framing the adapter
+ * printed taken off, and the module that sent it when the line names one.
+ *
+ * `parseFrames` does this from `ATDPN`'s protocol code, which is the right
+ * way when the code is known. This is the version for when it is not: the
+ * header is recognised from its own shape rather than from the protocol, and
+ * only when the second byte is `F1` — the tester's own address, which a
+ * headerless payload cannot begin with, since those start at the service
+ * byte. That one byte is what keeps a CAN data byte pattern from being
+ * mistaken for a length byte and eaten.
+ *
+ * A reply line that carries no payload (a prompt, `NO DATA`, the bare frame
+ * counter `014`) reads as null.
+ */
+export function readLineFrame(line: string): ObdMessage | null {
+  if (isNoiseLine(line)) return null;
+  const tokens = stripLinePrefix(line).split(/\s+/).filter(Boolean);
+  // A single token carries no payload — that is also the frame counter.
+  if (tokens.length < 2) return null;
+
+  let moduleId: number | null = null;
+  let start = 0;
+  const first = tokens[0];
+  if (CAN11_HEADER.test(first) || CAN29_PACKED.test(first)) {
+    moduleId = parseInt(first, 16);
+    start = 1;
+  }
+
+  const bytes: number[] = [];
+  for (let i = start; i < tokens.length; i++) {
+    if (BYTE.test(tokens[i])) bytes.push(parseInt(tokens[i], 16));
+  }
+  if (bytes.length === 0) return null;
+  if (moduleId !== null) return { header: moduleId, payload: bytes };
+
+  const legacy = bytes[1] === 0xf1 ? legacyHeader(bytes) : null;
+  if (legacy) {
+    return {
+      header: legacy.header,
+      payload: bytes.slice(3, bytes.length - legacy.trailingBytes),
+    };
+  }
+  return { header: null, payload: bytes };
+}
+
 function readHeader(
   tokens: string[],
+  bytes: number[],
   shape: "can11" | "can29" | "legacy",
-): { header: number; kind: FrameKind; addressBytes: number } | null {
+): {
+  header: number;
+  kind: FrameKind;
+  addressBytes: number;
+  /** Trailing bytes that are not data — the legacy checksum. */
+  trailingBytes: number;
+} | null {
   const first = tokens[0];
   if (CAN11_HEADER.test(first)) {
-    return { header: parseInt(first, 16), kind: "can11", addressBytes: 0 };
+    return {
+      header: parseInt(first, 16),
+      kind: "can11",
+      addressBytes: 0,
+      trailingBytes: 0,
+    };
   }
   if (CAN29_PACKED.test(first)) {
-    return { header: parseInt(first, 16), kind: "can29", addressBytes: 0 };
+    return {
+      header: parseInt(first, 16),
+      kind: "can29",
+      addressBytes: 0,
+      trailingBytes: 0,
+    };
   }
   if (!BYTE.test(first)) return null;
 
   // A byte-shaped first token could be data or an address, and only the
   // protocol tells them apart — 3 address bytes on ISO 9141/KWP, 4 on
   // 29-bit CAN. Guessing here would eat the first bytes of the payload.
-  if (shape === "legacy" && tokens.length >= 4 && allBytes(tokens, 3)) {
-    const [a, b, c] = tokens.slice(0, 3).map((t) => parseInt(t, 16));
-    return { header: (a << 16) | (b << 8) | c, kind: "legacy", addressBytes: 3 };
+  //
+  // The three legacy bytes are `Fmt Target Source`, and the module that
+  // answered is the **source** (third): `87 F1 18` is the tester's 0xF1
+  // hearing back from module 0x18. The format byte carries the payload
+  // length in its low six bits, which is what separates a header from a
+  // payload whose first byte also has bit 6 set (`41`…`4A`, `7F`). Clones
+  // disagree on whether the trailing checksum is printed and on whether it
+  // is counted in that length, hence the two-byte slack.
+  //
+  // The checksum itself has to come off the payload. One stray byte flips
+  // the pair count a DTC anchor is checked against, and the last `count`
+  // pair then reads as a code the car never stored — the measured reply
+  // `43 04 01 12 46 00 00` is exactly two codes with a checksum behind them,
+  // and three without this. Its length byte accounts for every byte but one,
+  // which is how a printed checksum is recognised; a clone that counts it
+  // inside the length is caught by the sum instead. An adapter that refuses
+  // ATH1 leaves the checksum in the payload with nothing left to check it
+  // against — the sum covers the header bytes, and those are already gone.
+  if (shape === "legacy") {
+    const legacy = legacyHeader(bytes);
+    if (legacy) {
+      return {
+        header: legacy.header,
+        kind: "legacy",
+        addressBytes: 3,
+        trailingBytes: legacy.trailingBytes,
+      };
+    }
   }
   if (shape === "can29" && tokens.length >= 5 && allBytes(tokens, 4)) {
     const [a, b, c, d] = tokens.slice(0, 4).map((t) => parseInt(t, 16));
@@ -197,6 +317,7 @@ function readHeader(
       header: ((a << 24) | (b << 16) | (c << 8) | d) >>> 0,
       kind: "can29",
       addressBytes: 4,
+      trailingBytes: 0,
     };
   }
   return null;
@@ -267,11 +388,59 @@ export type NegativeResponse = {
  * correct" is a read that failed, and the coverage line must not conflate
  * the two.
  */
+/**
+ * True when `payload[i]` opens a `7F <mode> <nrc>` refusal.
+ *
+ * Split out of {@link negativeResponse} because a reader that walks a
+ * payload byte by byte has to step *over* a refusal rather than only find
+ * one: a refusal lands in the middle of an otherwise good reply (the measured
+ * car answers `0904` with `7F 09 78` between two CALID messages), and its own
+ * byte is not always unprintable — `0x78` is the letter `x`, which is exactly
+ * the stray character that turned a two-CALID answer into `7539I073IIxI7b`.
+ *
+ * The mode byte must look like a J1979 mode, which is what keeps a `7F`
+ * sitting in ordinary data from being read as a refusal.
+ */
+export function refusalAt(
+  payload: number[],
+  i: number,
+  /** Services to read as a refusal beside J1979's modes (`01`–`0A`). A reader
+   *  walking a mode 09 body leaves this empty, and that is the right window
+   *  there: a refusal inside such a reply is always `7F 09 …`, so widening it
+   *  would only make ordinary data likelier to be mistaken for one. Explaining
+   *  an *empty* reply is the other case — the request may have been any
+   *  service this app sends, and the refused service's own byte comes back —
+   *  so that reader passes {@link DIAGNOSTIC_SERVICES}. */
+  services: ReadonlySet<number> = NO_SERVICES,
+): boolean {
+  return (
+    payload[i] === 0x7f &&
+    i + 2 < payload.length &&
+    ((payload[i + 1] >= 0x01 && payload[i + 1] <= 0x0a) ||
+      services.has(payload[i + 1]))
+  );
+}
+
+const NO_SERVICES: ReadonlySet<number> = new Set();
+
+/**
+ * The services this app puts on the wire that are not J1979 modes: KWP2000's
+ * two readers (`1A` identification, `21` local identifier) and UDS's `22`
+ * `ReadDataByIdentifier`.
+ *
+ * Their refusals are the *expected* answer on a car that does not speak the
+ * dialect — `7F 1A 12`, `7F 21 11`, `7F 22 31` — and reading them as
+ * unrecognised bytes went wrong twice over: the coverage line blamed the app
+ * for a refusal it had failed to parse, and the read counted as silence, so
+ * the connect spent its single retry asking a question the ECU had already
+ * answered.
+ */
+const DIAGNOSTIC_SERVICES: ReadonlySet<number> = new Set([0x1a, 0x21, 0x22]);
+
 export function negativeResponse(payload: number[]): NegativeResponse | null {
   for (let i = 0; i + 2 < payload.length; i++) {
-    if (payload[i] !== 0x7f) continue;
+    if (!refusalAt(payload, i, DIAGNOSTIC_SERVICES)) continue;
     const mode = payload[i + 1];
-    if (mode < 0x01 || mode > 0x0a) continue;
     const nrc = payload[i + 2];
     const reason =
       NRC[nrc] ??

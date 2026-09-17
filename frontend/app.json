@@ -44,9 +44,11 @@
       [
         "react-native-ble-plx",
         {
-          "bluetoothAlwaysPermission": "radacini uses Bluetooth to find and connect to your OBD-II adapter."
+          "bluetoothAlwaysPermission": "radacini uses Bluetooth to find and connect to your OBD-II adapter.",
+          "neverForLocation": true
         }
-      ]
+      ],
+      "./plugins/without-location"
     ],
     "experiments": {
       "typedRoutes": true

@@ -172,7 +172,10 @@ export function toFault(
   return {
     code: key,
     group: groupForDtc(key),
-    title: entry?.title ?? structure.subsystem ?? structure.systemName,
+    // A bare system name ("Chassis") reads as a truncated label on a list
+    // row and on the one line the report gives it; naming it as a code keeps
+    // the line saying something.
+    title: entry?.title ?? structure.subsystem ?? `${structure.systemName} code`,
     description: entry?.description ?? structure.summary,
     severity: entry?.severity ?? estimateSeverity(key),
     status,

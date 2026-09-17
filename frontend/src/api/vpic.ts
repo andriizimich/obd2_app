@@ -47,6 +47,17 @@ export function clearVinCache(): void {
   cache.clear();
 }
 
+/**
+ * vPIC reports a failed check digit as error code 1, and reports nothing
+ * else when it is the only thing wrong — which is the normal answer for a
+ * European VIN, since ISO 3779 requires the check digit only in North
+ * America. The response still carries make, model and year.
+ */
+export function checkDigitOnlyFailure(errorCode: string): boolean {
+  const codes = errorCode.split(",").map((c) => c.trim()).filter(Boolean);
+  return codes.includes("1") && codes.every((c) => c === "0" || c === "1");
+}
+
 function normalize(vin: string): string {
   return vin.trim().toUpperCase();
 }

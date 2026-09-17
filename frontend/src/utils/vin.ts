@@ -3,6 +3,53 @@
 
 export const VIN_CHARS = "ABCDEFGHJKLMNPRSTUVWXYZ0123456789";
 
+/** ISO 3779 length. A VIN is exactly this long or it is not a VIN. */
+export const VIN_LENGTH = 17;
+
+/** True for the 33 characters a VIN may contain — I, O and Q never occur. */
+export function isVinChar(char: string): boolean {
+  return char.length === 1 && VIN_CHARS.includes(char.toUpperCase());
+}
+
+/** Uppercases and drops everything a VIN cannot contain. */
+export function keepVinChars(raw: string): string {
+  let out = "";
+  for (const c of raw.toUpperCase()) if (VIN_CHARS.includes(c)) out += c;
+  return out;
+}
+
+/**
+ * 17 characters, all of them legal — **without** the check-digit test.
+ *
+ * The check digit is a North-American requirement (49 CFR 565); most of the
+ * world's manufacturers never compute one, so roughly ten out of eleven
+ * European VINs fail it by arithmetic accident. Discarding those VINs threw
+ * away the only identification a car had given — which is why this is the
+ * predicate the pipeline asks about, and {@link validateVin} is not.
+ */
+export function isFullVin(vin: string | null | undefined): boolean {
+  if (!vin) return false;
+  const v = vin.trim().toUpperCase();
+  return v.length === VIN_LENGTH && keepVinChars(v).length === VIN_LENGTH;
+}
+
+/** A leading fragment of a VIN: long enough for a world manufacturer code
+ *  (3 characters) to mean something, too short to be a whole VIN. */
+export function isPartialVin(vin: string | null | undefined): boolean {
+  if (!vin) return false;
+  const v = keepVinChars(vin.trim());
+  return v.length >= 3 && v.length < VIN_LENGTH;
+}
+
+/** Whether position 9 carries the check digit a North-American VIN must
+ *  have. Null when the VIN is not 17 legal characters. */
+export function vinCheckDigitOk(vin: string): boolean | null {
+  const v = vin.trim().toUpperCase();
+  if (!isFullVin(v)) return null;
+  const expected = computeCheckDigit(v);
+  return expected !== null && expected === v[8];
+}
+
 // Letter transliteration for the check-digit sum (I, O, Q are never legal VIN chars).
 export const TRANSLIT: Record<string, number> = {
   A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7, H: 8,
@@ -86,16 +133,63 @@ export function vinRegion(firstChar: string): VinRegion {
   return "Unknown";
 }
 
-// Compact WMI -> manufacturer map: a local fallback for when the NHTSA
-// lookup fails, not a substitute for it. It covers a handful of common
-// makes — a VIN outside this table simply keeps whatever the decoder said.
+/**
+ * World manufacturer identifier → make. The offline half of identification:
+ * the NHTSA lookup needs a network and a complete VIN, and neither is
+ * guaranteed — a car that answers mode 09 with six characters has still told
+ * us who built it, because the first three of them are the WMI.
+ *
+ * Names are spelled the way vPIC spells them (plain ASCII, no diacritics),
+ * because {@link wmiManufacturer} is used as a second opinion against the
+ * decoder and "Škoda" against "SKODA" would read as a disagreement.
+ *
+ * One make commonly holds several codes: the WMI identifies the *plant* or
+ * the division as much as the brand (KMH and KM8 are both Hyundai, one for
+ * cars and one for SUVs). A VIN that is not in here keeps whatever the
+ * decoder said.
+ */
 export const WMI_MANUFACTURERS: Record<string, string> = {
-  WVW: "Volkswagen",
-  WBA: "BMW",
-  "4T1": "Toyota",
-  WAU: "Audi",
-  "1FA": "Ford",
-  WDD: "Mercedes-Benz",
+  // --- Germany ---
+  WVW: "Volkswagen", WV1: "Volkswagen", WV2: "Volkswagen",
+  WAU: "Audi", WUA: "Audi", TRU: "Audi",
+  WBA: "BMW", WBS: "BMW", WBY: "BMW",
+  WMW: "Mini",
+  WDB: "Mercedes-Benz", WDC: "Mercedes-Benz", WDD: "Mercedes-Benz", WMX: "Mercedes-Benz",
+  W0L: "Opel", W0V: "Vauxhall",
+  WME: "Smart",
+  // --- France, Italy, Spain ---
+  VF1: "Renault", VF3: "Peugeot", VF7: "Citroen",
+  UU1: "Dacia", UU2: "Dacia", UU3: "Dacia",
+  VSS: "Seat",
+  ZFA: "Fiat", ZAR: "Alfa Romeo", ZAM: "Maserati", ZLA: "Lancia",
+  ZFF: "Ferrari", ZHW: "Lamborghini",
+  // --- Czechia, Sweden, UK, Russia ---
+  TMB: "Skoda",
+  YV1: "Volvo", YV4: "Volvo",
+  YS3: "Saab",
+  SAJ: "Jaguar", SAL: "Land Rover", SAR: "Rover",
+  SCA: "Rolls-Royce", SCB: "Bentley", SCC: "Lotus", SCF: "Aston Martin",
+  XTA: "Lada",
+  // --- Korea ---
+  KMH: "Hyundai", KM8: "Hyundai", TMA: "Hyundai",
+  KNA: "Kia", KNB: "Kia", KND: "Kia", U5Y: "Kia",
+  KLA: "Daewoo", KL1: "Chevrolet",
+  // --- Japan ---
+  JTD: "Toyota", JTM: "Toyota", JTH: "Lexus",
+  JN1: "Nissan", JN8: "Nissan", JNK: "Infiniti", VSK: "Nissan",
+  JHM: "Honda", SHH: "Honda",
+  JMZ: "Mazda", JM1: "Mazda",
+  JMB: "Mitsubishi",
+  JSA: "Suzuki", TSM: "Suzuki",
+  JF1: "Subaru", JF2: "Subaru",
+  // --- North America ---
+  "1FA": "Ford", WF0: "Ford",
+  "1G1": "Chevrolet", "1G6": "Cadillac", "1GT": "GMC", "1G4": "Buick",
+  "1C3": "Chrysler", "1B3": "Dodge", "1J4": "Jeep", "1C4": "Jeep",
+  "4T1": "Toyota", "4T3": "Toyota", "5TD": "Toyota", "4JG": "Mercedes-Benz",
+  "5YJ": "Tesla",
+  // --- China ---
+  LVV: "Chery",
 };
 
 export function wmiManufacturer(vin: string): string | null {

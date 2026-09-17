@@ -5,9 +5,9 @@
 import { Elm327Channel } from "../src/obd/at";
 import {
   PROTOCOL_NAMES,
-  ascii,
-  extractBytes,
-  extractMode49,
+  parseCalid,
+  parseEcuName,
+  parseVin,
   readCalid,
   readEcuName,
   readVin,
@@ -19,6 +19,14 @@ function check(name: string, cond: boolean, detail?: string) {
   if (!cond) failures.push(`${name}${detail ? ` — ${detail}` : ""}`);
   console.log(`${cond ? "PASS" : "FAIL"} ${name}${detail ? ` (${detail})` : ""}`);
 }
+
+/** Let queued microtasks run: a channel that was parked on a drain writes its
+ *  next command from a microtask, not synchronously. */
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+/** Longer than a drain that hears nothing. Mirrors FLUSH_MS in src/obd/at.ts,
+ *  which is deliberately not exported — the wait is what that test is about. */
+const DRAIN_MS = 1100;
 
 async function main() {
   // 1. Echo + single-line response, no prompt (ATI style).
@@ -109,39 +117,24 @@ async function main() {
 
   // 9. VIN from a multi-line reply: frame counter + "N:" prefixes.
   {
-    const bytes = extractBytes([
+    const vin = parseVin([
       "014",
       "0: " + vinResp.slice(0, 12).join(" "),
       "1: " + vinResp.slice(12).join(" "),
     ]);
-    const block = extractMode49(bytes, 0x02);
-    check(
-      "mode09: VIN parsed from multi-line frames",
-      block !== null && ascii(block.data).slice(0, 17) === VIN,
-      block ? ascii(block.data).slice(0, 17) : "null",
-    );
+    check("mode09: VIN parsed from multi-line frames", vin === VIN, vin ?? "null");
   }
 
   // 10. VIN from a CAN single frame with header + PCI length byte.
   {
-    const bytes = extractBytes(["7E8 06 " + vinResp.join(" ")]);
-    const block = extractMode49(bytes, 0x02);
-    check(
-      "mode09: VIN parsed with CAN header and PCI",
-      block !== null && ascii(block.data).slice(0, 17) === VIN,
-      block ? ascii(block.data).slice(0, 17) : "null",
-    );
+    const vin = parseVin(["7E8 06 " + vinResp.join(" ")]);
+    check("mode09: VIN parsed with CAN header and PCI", vin === VIN, vin ?? "null");
   }
 
   // 11. VIN padded with 0xAA (multi-frame ISO-TP tail padding).
   {
-    const bytes = extractBytes([(vinResp.concat(["AA", "AA", "AA", "AA"])).join(" ")]);
-    const block = extractMode49(bytes, 0x02);
-    check(
-      "mode09: VIN parsed despite ISO-TP padding",
-      block !== null && ascii(block.data).slice(0, 17) === VIN,
-      block ? ascii(block.data).slice(0, 17) : "null",
-    );
+    const vin = parseVin([vinResp.concat(["AA", "AA", "AA", "AA"]).join(" ")]);
+    check("mode09: VIN parsed despite ISO-TP padding", vin === VIN, vin ?? "null");
   }
 
   // 12. Full readVin round-trip through the channel.
@@ -153,14 +146,14 @@ async function main() {
     check("mode09: readVin round-trip", vin === VIN, vin ?? "null");
   }
 
-  // 13. CALID single.
+  // 13. CALID single. The byte behind the PID is the reply's own identifier
+  //     and must not appear in the value.
   {
-    const bytes = extractBytes(["49 04 01 33 32 39 30 2D 43 41 4C 49 44 2D 30 31"]);
-    const block = extractMode49(bytes, 0x04);
+    const ids = parseCalid(["49 04 01 33 32 39 30 2D 43 41 4C 49 44 2D 30 31"]);
     check(
       "mode09: single CALID parsed",
-      block !== null && block.count === 1 && ascii(block.data) === "3290-CALID-01",
-      block ? `${block.count}/${ascii(block.data)}` : "null",
+      JSON.stringify(ids) === JSON.stringify(["3290-CALID-01"]),
+      JSON.stringify(ids),
     );
   }
 
@@ -170,11 +163,7 @@ async function main() {
     const pad = (arr: string[]) => arr.concat(Array(16 - arr.length).fill("00"));
     const id1 = pad(mk("CALID-AAA"));
     const id2 = pad(mk("CALID-BBB"));
-    const bytes = extractBytes([["49", "04", "02", ...id1, ...id2].join(" ")]);
-    const block = extractMode49(bytes, 0x04);
-    const ids = block
-      ? Array.from({ length: block.count }, (_, i) => ascii(block.data.slice(i * 16, (i + 1) * 16)))
-      : [];
+    const ids = parseCalid([["49", "04", "02", ...id1, ...id2].join(" ")]);
     check(
       "mode09: two CALIDs split into 16-byte fields",
       JSON.stringify(ids) === JSON.stringify(["CALID-AAA", "CALID-BBB"]),
@@ -182,21 +171,55 @@ async function main() {
     );
   }
 
-  // 15. ECU name with null padding.
+  // 14b. The measured car, byte for byte. Its `0904` numbers every message and
+  //      carries four data bytes each, so an identifier sits in front of every
+  //      group — and a `7F 09 78` ("still working") sits in the middle of the
+  //      reply. An earlier parser ran on from the first anchor, read all of it
+  //      back as text, and put `7539I073IIxI7b…` on the CALID row: `0x49` is
+  //      the letter `I` and `0x78` is `x`.
   {
-    const bytes = extractBytes(["49 0A 01 45 43 4D 2D 45 6E 67 69 6E 65 43 6F 6E 74 72 6F 6C 00 00 00"]);
-    const block = extractMode49(bytes, 0x0a);
+    const ids = parseCalid([
+      "49 04 01 37 35 33 39",
+      "49 04 02 30 37 33 00",
+      "49 04 03 00 00 00 00",
+      "49 04 04 00 00 00 00",
+      "7F 09 78",
+      "49 04 05 37 35 35 38",
+      "49 04 06 33 36 33 00",
+      "49 04 07 00 00 00 00",
+    ]);
     check(
-      "mode09: ECU name parsed",
-      block !== null && ascii(block.data) === "ECM-EngineControl",
-      block ? ascii(block.data) : "null",
+      "mode09: the car's own 0904 reply yields its two CALIDs",
+      JSON.stringify(ids) === JSON.stringify(["7539073", "7558363"]),
+      JSON.stringify(ids),
     );
   }
 
-  // 16. NO DATA — the PID is unsupported.
+  // 14c. A pending reply carries no data at all, and one that landed inside a
+  //      value would leave a printable `x` behind — the only byte of it a
+  //      reader could not have spotted as framing.
   {
-    const bytes = extractBytes(["NO DATA"]);
-    check("mode09: NO DATA yields null", extractMode49(bytes, 0x02) === null);
+    const ids = parseCalid(["49 04 01 41 42 43 00", "7F 09 78", "49 04 02 44 45 46 00"]);
+    check(
+      "mode09: a pending reply never reaches the value",
+      JSON.stringify(ids) === JSON.stringify(["ABCDEF"]),
+      JSON.stringify(ids),
+    );
+  }
+
+  // 15. ECU name with null padding.
+  {
+    const name = parseEcuName([
+      "49 0A 01 45 43 4D 2D 45 6E 67 69 6E 65 43 6F 6E 74 72 6F 6C 00 00 00",
+    ]);
+    check("mode09: ECU name parsed", name === "ECM-EngineControl", name ?? "null");
+  }
+
+  // 16. The two ways a PID is not answered: the adapter says so, or the ECU
+  //     refuses. Neither is a value.
+  {
+    check("mode09: NO DATA yields nothing", parseCalid(["NO DATA"]).length === 0);
+    check("mode09: a refusal yields nothing", parseCalid(["7F 09 12"]).length === 0);
   }
 
   // 17. Protocol code map.
@@ -219,6 +242,92 @@ async function main() {
     ch.feed("090A\r49 0A 01 45 43 4D 00 00\r>");
     const name = await p;
     check("mode09: readEcuName round-trip", name === "ECM", name ?? "null");
+  }
+
+  // ---------- draining an abandoned command's answer ----------
+
+  // 19. A reply that outlives the command it answers must not be handed to the
+  //     command that follows. This is the shape that makes every read after
+  //     the first timeout come back with nothing while the AT commands still
+  //     answer: the abandoned answer's prompt ends the *next* command's wait.
+  {
+    const sent: string[] = [];
+    const ch = new Elm327Channel((raw) => void sent.push(raw));
+    let timedOut = false;
+    try {
+      await ch.command("0902", 120);
+    } catch {
+      timedOut = true;
+    }
+    check("drain: an unanswered command still times out", timedOut, JSON.stringify(sent));
+
+    // The adapter was only slower than the caller's patience: its data, then
+    // its prompt, arrive with nothing waiting for them.
+    ch.feed("0902\r49 02 01 57 56 57 5A\r");
+    const next = ch.command("ATDPN", 400);
+    ch.feed(">\r");
+    check(
+      "drain: nothing is written while the abandoned answer is still arriving",
+      sent.length === 1,
+      JSON.stringify(sent),
+    );
+    await tick();
+    check(
+      "drain: the next command goes out as soon as the adapter's prompt ends the drain",
+      sent.length === 2 && sent[1] === "ATDPN\r",
+      JSON.stringify(sent),
+    );
+    ch.feed("ATDPN\r6\r>\r");
+    const lines = await next;
+    check(
+      "drain: a late prompt cannot resolve the next command",
+      JSON.stringify(lines) === JSON.stringify(["6"]),
+      JSON.stringify(lines),
+    );
+  }
+
+  // 20. The abandoned answer's half-written line must not become the first
+  //     line of the next reply. The drain runs out here rather than ending on
+  //     a prompt, which is the only way the fragment survives long enough —
+  //     hence the real wait.
+  {
+    const ch = new Elm327Channel(() => {});
+    try {
+      await ch.command("0902", 80);
+    } catch {
+      /* the timeout is the setup, not the check */
+    }
+    ch.feed("49 02 01 57"); // half a line; the rest never comes
+    await new Promise<void>((resolve) => setTimeout(resolve, DRAIN_MS));
+    const next = ch.command("ATDPN", 400);
+    ch.feed("ATDPN\r6\r>\r");
+    const lines = await next;
+    check(
+      "drain: a fragment left by the abandoned answer cannot glue onto the next reply",
+      JSON.stringify(lines) === JSON.stringify(["6"]),
+      JSON.stringify(lines),
+    );
+  }
+
+  // 21. Disposing mid-drain must release a parked command rather than leave it
+  //     waiting out the ceiling.
+  {
+    const ch = new Elm327Channel(() => {});
+    try {
+      await ch.command("0902", 60);
+    } catch {
+      /* the timeout is the setup, not the check */
+    }
+    const next = ch.command("ATI", 100);
+    ch.dispose();
+    let settled = false;
+    try {
+      await next;
+      settled = true;
+    } catch {
+      settled = true;
+    }
+    check("drain: dispose releases a command parked on the drain", settled);
   }
 
   if (failures.length > 0) {

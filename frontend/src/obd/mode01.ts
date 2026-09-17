@@ -7,13 +7,17 @@
 // combinations and absent on others, so both readers look for the
 // `41 <PID>` header rather than trusting an offset.
 //
-// ATH1 is safe here: a header (`7E8`) is three hex digits, so the byte
-// tokenizer drops it and the anchor scan is unaffected. Every module answers
-// PID 01, and the first reply is the engine's — the one the MIL belongs to.
+// ATH1 is read here through the frame layer rather than the flat tokenizer:
+// PID 01 is *answered by every module that has one*, and reading only the
+// first reply means reading whichever module the adapter happened to print
+// first. On a KWP2000 car that is a coin toss — measured on a real one, the
+// engine answered second, and taking the first turned a lamp-on module with
+// two stored codes into "lamp off, ECU counts 0".
 
 import type { Elm327Channel } from "@/src/obd/at";
 import { extractBytes } from "@/src/obd/at";
-import type { DiagnosticStatus } from "@/src/obd/types";
+import { moduleLabel, parseMessages, type ParseOptions } from "@/src/obd/frames";
+import type { DiagnosticStatus, ModuleStatus } from "@/src/obd/types";
 
 /** MIL + stored-code count (J1979 mode 01, PID 01). */
 const STATUS_PID = 0x01;
@@ -88,9 +92,44 @@ export function decodeStatus(data: number[]): DiagnosticStatus | null {
   };
 }
 
-export function parseStatus(lines: string[]): DiagnosticStatus | null {
-  const data = extractPidData(extractBytes(lines), STATUS_PID);
-  return data ? decodeStatus(data) : null;
+/** Every module that answered PID 01, in the order the adapter printed them. */
+export function parseStatuses(
+  lines: string[],
+  opts: ParseOptions = {},
+): ModuleStatus[] {
+  const out: ModuleStatus[] = [];
+  for (const message of parseMessages(lines, opts)) {
+    const data = extractPidData(message.payload, STATUS_PID);
+    const status = data ? decodeStatus(data) : null;
+    if (!status) continue;
+    out.push({
+      moduleId: message.header,
+      module: moduleLabel(message.header),
+      ...status,
+    });
+  }
+  return out;
+}
+
+/**
+ * The whole vehicle's lamp state, not one module's. A lamp that any module
+ * has commanded on is a lamp the driver can see, so `milOn` is the union —
+ * reporting the engine's answer alone is what let a two-code car read as
+ * clean. The counts add up for the same reason: each module counts its own
+ * list, and mode 03 returns all of those lists.
+ */
+export function parseStatus(
+  lines: string[],
+  opts: ParseOptions = {},
+): DiagnosticStatus | null {
+  const modules = parseStatuses(lines, opts);
+  if (modules.length === 0) return null;
+  return {
+    milOn: modules.some((m) => m.milOn),
+    dtcCount: modules.reduce((n, m) => n + m.dtcCount, 0),
+    compressionIgnition: modules.some((m) => m.compressionIgnition),
+    modules,
+  };
 }
 
 /**

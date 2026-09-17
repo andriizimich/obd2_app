@@ -18,10 +18,7 @@ import {
 import { PermissionsAndroid, Platform } from "react-native";
 
 import { Elm327Channel } from "@/src/obd/at";
-import {
-  readCompatibilityOver,
-  readDiagnosticsOver,
-} from "@/src/obd/diagnostics";
+import { readDiagnosticsOver } from "@/src/obd/diagnostics";
 import {
   elm327Handshake,
   readVehicleInfoOver,
@@ -29,9 +26,9 @@ import {
 import type { AdapterInfo, ObdTransport, VehicleInfo } from "@/src/obd/transport";
 import { OdbConnectError, OdbScanError } from "@/src/obd/transport";
 import type {
-  CompatibilityLine,
   DiagnosticReport,
   DiagnosticsOptions,
+  VehicleInfoOptions,
   ObdDevice,
 } from "@/src/obd/types";
 
@@ -112,20 +109,24 @@ export async function ensureBleReady(): Promise<void> {
     }
   }
 
-  // Runtime permissions. Bluetooth permissions are REQUIRED on Android 12+.
-  // Below API 31 Google requires fine location for BLE scans, so it goes
-  // into the required set for those old devices.
+  // Runtime permissions. Android 12 (API 31) added the Bluetooth
+  // permissions that make location unnecessary for a BLE scan. The app
+  // declares no location permission at all — the manifest strips the
+  // ones the BLE library asks for (see plugins/without-location.js) —
+  // so on older Androids there is nothing to grant and the scan cannot
+  // work. Say that plainly instead of requesting a permission that is
+  // not in the manifest and silently getting "denied" for it.
   const api = Number(Platform.Version);
-  const required =
-    api >= 31
-      ? [
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-        ]
-      : [
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-        ];
+  if (api < 31) {
+    throw new OdbScanError(
+      "unsupported",
+      "Scanning needs Android 12 or newer: older versions require the location permission, which this app no longer asks for.",
+    );
+  }
+  const required = [
+    PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+    PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+  ];
   const result = await PermissionsAndroid.requestMultiple(required);
   const denied = required.filter(
     (p) => result[p] !== PermissionsAndroid.RESULTS.GRANTED,
@@ -135,21 +136,6 @@ export async function ensureBleReady(): Promise<void> {
       "permission-denied",
       "Bluetooth permission is required to find OBD-II adapters.",
     );
-  }
-
-  // Best-effort location on Android 12+: the OS does not require it, but
-  // some OEM firmwares withhold BLE device NAMES from scan results unless
-  // the location grant exists (this is why other apps show names and we
-  // saw MAC-only floods). Scanning proceeds either way — denying it may
-  // leave some devices unnamed.
-  if (api >= 31) {
-    try {
-      await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      );
-    } catch {
-      // Optional — never block the scan on this.
-    }
   }
 }
 
@@ -297,15 +283,31 @@ export class BleTransport implements ObdTransport {
       },
     );
 
-    return elm327Handshake(elm);
+    try {
+      return await elm327Handshake(elm);
+    } catch (err) {
+      // Say exactly which endpoint was driven. A clone that exposes more
+      // than one writable+notifiable service can be talked to on the wrong
+      // one, and silence is the only symptom — this line is what tells the
+      // two cases apart afterwards. The address is here too: it settles
+      // whether the right adapter was tapped in the first place.
+      if (err instanceof OdbConnectError) {
+        throw new OdbConnectError(
+          err.kind,
+          `${err.message} [BLE ${device.id} service ${channel.serviceUuid}` +
+            ` write ${channel.write.uuid} notify ${channel.notify.uuid}]`,
+        );
+      }
+      throw err;
+    }
   }
 
-  async readVehicleInfo(): Promise<VehicleInfo> {
+  async readVehicleInfo(opts?: VehicleInfoOptions): Promise<VehicleInfo> {
     const elm = this.elm;
     if (!elm || !this.connected) {
       throw new OdbConnectError("disconnected", "Adapter is not connected.");
     }
-    return readVehicleInfoOver(elm);
+    return readVehicleInfoOver(elm, undefined, opts);
   }
 
   async readDiagnostics(opts?: DiagnosticsOptions): Promise<DiagnosticReport> {
@@ -314,14 +316,6 @@ export class BleTransport implements ObdTransport {
       throw new OdbConnectError("disconnected", "Adapter is not connected.");
     }
     return readDiagnosticsOver(elm, opts);
-  }
-
-  async readCompatibility(): Promise<CompatibilityLine[]> {
-    const elm = this.elm;
-    if (!elm || !this.connected) {
-      throw new OdbConnectError("disconnected", "Adapter is not connected.");
-    }
-    return readCompatibilityOver(elm);
   }
 
   disconnect(): void {

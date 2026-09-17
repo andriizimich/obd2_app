@@ -44,11 +44,21 @@ export type Vehicle = {
  *  the basis of the validation score shown on the dashboard. */
 export type IdentificationEvidence = {
   vinFromEcu: string | null;
+  /** The request the VIN above came back from — `"0902"` (the standard PID)
+   *  or `"1A 90"` (the maker's own service), and null when no VIN came back
+   *  at all. Two questions are asked for a VIN, and which one answered is
+   *  the difference between a car that declines mode 09 and an adapter that
+   *  cannot carry it. */
+  vinFrom?: string | null;
   calid: string[];
   ecuName: string | null;
   protocol: string | null;
   vpicStatus: "ok" | "partial" | "error" | "not-run";
   warnings: string[];
+  /** How each connect-time read went. Four dashes above say only that nothing
+   *  came back; these say which of the four ways it did not — and that is the
+   *  whole diagnosis when a car scans fine and identifies not at all. */
+  reads?: Coverage[];
 };
 
 export type FaultGroup =
@@ -104,6 +114,29 @@ export type Coverage = {
   label: string;
   status: CoverageStatus;
   detail?: string;
+  /**
+   * What the adapter actually sent back for this request (capped).
+   *
+   * The status says *that* a read worked; it cannot say what came back, and
+   * on a car whose reply does not match any fixture that is the whole
+   * question. A VIN read that yields `B3338` is either a car answering in a
+   * layout the parser does not know or a parser anchored on the wrong bytes,
+   * and no amount of staring at the parsed fragment tells the two apart —
+   * the reply itself does. Kept per read, not merged into one transcript,
+   * because the lines only mean something next to the request that caused
+   * them: a flat transcript of six reads is six answers with no questions.
+   */
+  raw?: string[];
+};
+
+/** One module's answer to PID 01. */
+export type ModuleStatus = {
+  moduleId: number | null;
+  module: string | null;
+  milOn: boolean;
+  dtcCount: number;
+  /** Byte B bit 3 of that module's own answer. */
+  compressionIgnition: boolean;
 };
 
 export type DiagnosticStatus = {
@@ -113,6 +146,9 @@ export type DiagnosticStatus = {
   dtcCount: number;
   /** Byte B bit 3 — compression ignition (diesel). */
   compressionIgnition: boolean;
+  /** One entry per module that answered PID 01. Absent on reports saved
+   *  before modules were tracked, hence optional. */
+  modules?: ModuleStatus[];
 };
 
 export type DiagnosticReport = {
@@ -132,18 +168,36 @@ export type DiagnosticReport = {
   rawLines: string[];
 };
 
-/**
- * One command of the adapter compatibility check, with the reply exactly as
- * the adapter sent it. Nothing here is parsed: the point is to see what a
- * particular clone actually prints, which no offline fixture can tell us.
- */
-export type CompatibilityLine = {
-  /** The command as sent, e.g. "ATH1". */
-  command: string;
-  /** What the command asks, in plain English. */
-  label: string;
-  /** Raw reply lines, or a single "<no reply: …>" line when it timed out. */
-  lines: string[];
+export type VehicleInfoOptions = {
+  /**
+   * Whether this read may spend twelve seconds asking every `1A 80–9F`
+   * option for an identification the car has not otherwise given.
+   *
+   * Off by default, and that default is the point. Asked at connect, the
+   * sweep runs before the driver has read a single fault code, and on
+   * 2026-09-17 it was followed by a pass that read nothing at all (`03 ✗ ·
+   * 07 ✗ · 0A ✗ · 0101 ✗ · 01A6 ✗`, the adapter answering `NO DATA` to
+   * each) on a car that had scanned cleanly that morning without it. Nobody
+   * has yet shown the sweep caused that, which is exactly why it is not
+   * worth the codes: reading codes is what this app is for.
+   *
+   * Set only where the codes are already in hand and nothing else needs the
+   * bus afterwards — the re-identification the scan runs at its end, on a
+   * bus that pass has just proved is answering.
+   */
+  sweepIdentification?: boolean;
+
+  /**
+   * Module addresses a diagnostic pass has already seen on this bus, so the
+   * VIN read can ask each of them directly instead of broadcasting.
+   *
+   * A functional request is heard by every module at once, and on a car with
+   * two controllers answering `1A 90` their frames interleave into one reply
+   * that the parser can only read runs out of. The addresses come from the
+   * scan — a pass that read fault codes has already named who is on the bus —
+   * and are empty at connect time, when nothing has looked yet.
+   */
+  moduleAddresses?: number[];
 };
 
 export type DiagnosticsOptions = {

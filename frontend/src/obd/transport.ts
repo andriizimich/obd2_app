@@ -5,9 +5,10 @@
 // implementations directly — they get one from src/obd/index.ts.
 
 import type {
-  CompatibilityLine,
+  Coverage,
   DiagnosticReport,
   DiagnosticsOptions,
+  VehicleInfoOptions,
   ObdDevice,
 } from "@/src/obd/types";
 
@@ -47,8 +48,12 @@ export class OdbConnectError extends Error {
 /** Vehicle data read from the ECU (mode 09). Every field is best-effort —
  *  older cars and some ECUs answer only a subset. */
 export type VehicleInfo = {
-  /** VIN from mode 09, PID 02 (17 chars when present). */
+  /** VIN from mode 09, PID 02 (17 chars when present), or — on a bus where
+   *  that PID does not exist — from the maker's own `1A 90`. */
   vin: string | null;
+  /** Which of the two requests above produced `vin`: `"0902"`, `"1A 90"`, or
+   *  null when neither did. */
+  vinFrom?: string | null;
   /** Calibration IDs from mode 09, PID 04. */
   calid: string[];
   /** ECU name from mode 09, PID 0A. */
@@ -60,6 +65,13 @@ export type VehicleInfo = {
    *  so most cars answer NO DATA. Never derived from PID 31: that counter
    *  resets on every code clear and is not the odometer. */
   mileage?: number | null;
+  /** How each connect-time read went, in the same shape the scan reports its
+   *  own. Optional: a transport that predates it, and every saved scan,
+   *  simply has none. */
+  reads?: Coverage[];
+  /** The adapter's own lines from those reads (capped) — what it takes to
+   *  tell "the ECU said NO DATA" from "the adapter never answered". */
+  rawLines?: string[];
 };
 
 export interface ObdTransport {
@@ -73,8 +85,12 @@ export interface ObdTransport {
   connect(device: ObdDevice): Promise<AdapterInfo>;
 
   /** Read vehicle information from the ECU. Requires an active connection;
-   *  individual fields may be null when unsupported. */
-  readVehicleInfo(): Promise<VehicleInfo>;
+   *  individual fields may be null when unsupported.
+   *
+   *  `opts.sweepIdentification` is the caller's permission to probe the whole
+   *  identification block, which costs twelve seconds and is not asked for by
+   *  default — see {@link VehicleInfoOptions}. */
+  readVehicleInfo(opts?: VehicleInfoOptions): Promise<VehicleInfo>;
 
   /**
    * Run the diagnostic pass — fault codes, lamp state and odometer — and
@@ -85,14 +101,6 @@ export interface ObdTransport {
    * progress screen, where it is indistinguishable from a hang.
    */
   readDiagnostics(opts?: DiagnosticsOptions): Promise<DiagnosticReport>;
-
-  /**
-   * Ask the adapter a fixed set of questions and keep the raw replies.
-   * This is how a reading taken on an unfamiliar car is explained
-   * afterwards: the parsers assume things about clones that only the
-   * adapter itself can confirm or refute.
-   */
-  readCompatibility(): Promise<CompatibilityLine[]>;
 
   /** Drop the active connection, if any. */
   disconnect(): void;

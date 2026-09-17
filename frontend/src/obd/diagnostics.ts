@@ -24,7 +24,14 @@
 
 import type { Elm327Channel } from "@/src/obd/at";
 import { toFault } from "@/src/obd/dtc";
-import { saidNoData } from "@/src/obd/frames";
+import { moduleLabel, type ParseOptions } from "@/src/obd/frames";
+import {
+  adapterRefusal,
+  describeError,
+  emptyDetail,
+  isNonAnswer,
+  UNSUPPORTED_NRC,
+} from "@/src/obd/reply";
 import { parseOdometer, parseStatus } from "@/src/obd/mode01";
 import {
   DTC_MODES,
@@ -34,7 +41,6 @@ import {
 } from "@/src/obd/mode03";
 import { detectProtocolCode, PROTOCOL_NAMES } from "@/src/obd/mode09";
 import type {
-  CompatibilityLine,
   Coverage,
   CoverageStatus,
   DiagnosticReport,
@@ -58,10 +64,6 @@ const LIST_FOR_MODE: Record<DtcMode, DtcStatus> = {
   0x07: "pending",
   0x0a: "permanent",
 };
-
-/** CAN id of the engine ECU — the module PID 01 answers for, and so the one
- *  whose code list the ECU's own count can be checked against. */
-const ENGINE_MODULE = 0x7e8;
 
 /**
  * Turn headers on or off. Returns whether headers are ON afterwards, so
@@ -87,58 +89,21 @@ export async function setHeaders(
 }
 
 /**
- * What the compatibility check asks, in order. Six questions whose answers
- * settle every assumption this app makes about an unseen adapter: whether it
- * is an ELM327 at all, which protocol it negotiated, whether it honours
- * ATH1, what the lamp byte and the odometer really return, and what a mode
- * 03 reply looks like on the wire.
+ * `lamp off, ECU counts 0` — with the per-module split when more than one
+ * module answered. The aggregate alone would hide which module lit the lamp,
+ * and on a KWP2000 car that is the difference between a clean engine and a
+ * module with two stored codes.
  */
-const COMPAT_COMMANDS: { command: string; label: string; ms: number }[] = [
-  { command: "ATI", label: "Adapter identification", ms: 3000 },
-  { command: "ATDPN", label: "Protocol in use", ms: 3000 },
-  { command: "ATH1", label: "Headers on (module addresses)", ms: 2000 },
-  { command: "0101", label: "Lamp state and ECU code count", ms: 3000 },
-  { command: "01A6", label: "Odometer", ms: 3000 },
-  { command: "03", label: "Stored fault codes", ms: 4000 },
-  { command: "ATH0", label: "Headers off", ms: 2000 },
-];
-
-/**
- * Run each command and keep the reply verbatim. Every step is caught
- * individually, so the list runs to the end — including the ATH0 that puts
- * the adapter back the way the rest of the app expects it. This is the
- * surface a first real reading is diagnosed from, so it must never throw
- * and never stop halfway.
- */
-export async function readCompatibilityOver(
-  elm: Elm327Channel,
-  opts: { timeoutMs?: number } = {},
-): Promise<CompatibilityLine[]> {
-  const out: CompatibilityLine[] = [];
-  for (const step of COMPAT_COMMANDS) {
-    const ms = opts.timeoutMs ?? step.ms;
-    try {
-      out.push({
-        command: step.command,
-        label: step.label,
-        lines: await elm.command(step.command, ms),
-      });
-    } catch (err) {
-      out.push({
-        command: step.command,
-        label: step.label,
-        lines: [`<no reply: ${describeError(err)}>`],
-      });
-    }
-  }
-  return out;
-}
-
-/** NRCs that mean "this vehicle does not do that" rather than "that failed". */
-const UNSUPPORTED_NRC = new Set([0x11, 0x31]);
-
-function describeError(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+function statusDetail(status: DiagnosticStatus): string {
+  const base = `lamp ${status.milOn ? "on" : "off"}, ECU counts ${status.dtcCount}`;
+  const modules = status.modules ?? [];
+  if (modules.length < 2) return base;
+  const parts = modules.map((m) => {
+    const who = m.module ?? moduleLabel(m.moduleId) ?? "a module";
+    const codes = `${m.dtcCount} code${m.dtcCount === 1 ? "" : "s"}`;
+    return `${who}: ${codes}, lamp ${m.milOn ? "on" : "off"}`;
+  });
+  return `${base} — ${parts.join(" · ")}`;
 }
 
 /**
@@ -149,12 +114,9 @@ function describeError(err: unknown): string {
 function classifyDtc(
   sets: RawDtcSet[],
   lines: string[],
+  opts: ParseOptions,
 ): { status: CoverageStatus; detail: string } {
-  if (sets.length === 0) {
-    return saidNoData(lines)
-      ? { status: "unsupported", detail: "the ECU answered NO DATA" }
-      : { status: "error", detail: "no readable reply" };
-  }
+  if (sets.length === 0) return emptyDetail(lines, opts);
   const refusal = sets.find((set) => set.negative)?.negative;
   if (refusal) {
     return {
@@ -186,6 +148,11 @@ export async function readDiagnosticsOver(
   const rawLines: string[] = [];
   const coverage: Coverage[] = [];
   const notes: string[] = [];
+  /** Extra commands this pass may spend on questions nobody answered. */
+  const retries = { left: 1 };
+
+  /** What the adapter said when it had no data, for the summary note. */
+  const refusals = new Set<string>();
 
   /** Every command goes through here, so the debug surface sees all of it. */
   const ask = async (request: string, ms: number): Promise<string[]> => {
@@ -193,6 +160,8 @@ export async function readDiagnosticsOver(
     for (const line of lines) {
       if (rawLines.length < RAW_LINE_CAP) rawLines.push(line);
     }
+    const refusal = adapterRefusal(lines);
+    if (refusal) refusals.add(refusal);
     return lines;
   };
 
@@ -211,6 +180,22 @@ export async function readDiagnosticsOver(
     // ignore — the header width falls back to CAN 11-bit
   }
 
+  if (!protocolCode) {
+    // An adapter that has not yet carried a message on the bus answers
+    // `ATDPN` with `AUTO`, not with a code — it has nothing to report. That
+    // is why the same car gave `A5` on one pass and "protocol unknown" on
+    // the next: ATAL had just reset the adapter, and whether anything had
+    // been asked of the bus since was a matter of timing. One harmless
+    // single-frame request settles it, and this runs only when the first
+    // answer was unusable.
+    try {
+      await ask("0100", 2000);
+      protocolCode = detectProtocolCode(await ask("ATDPN", 2000));
+    } catch {
+      // Still nothing — the note below reports it.
+    }
+  }
+
   const headersOn = await setHeaders(elm, true, (lines) => {
     for (const line of lines) {
       if (rawLines.length < RAW_LINE_CAP) rawLines.push(line);
@@ -221,6 +206,10 @@ export async function readDiagnosticsOver(
       "Protocol unknown — module addresses are read as CAN 11-bit, which may misattribute them.",
     );
   }
+
+  // How every reply below is framed. Built here, after ATH1 has answered,
+  // because a header width guessed wrong eats the first payload bytes.
+  const parseOpts: ParseOptions = { protocolCode, headers: headersOn };
 
   const dtcSets = new Map<DtcMode, RawDtcSet[]>();
   let status: DiagnosticStatus | null = null;
@@ -254,18 +243,42 @@ export async function readDiagnosticsOver(
       }
 
       try {
-        const lines = await ask(
-          stage.request,
-          stage.mode ? timeoutMs : optionalMs,
-        );
+        const attempt = async (): Promise<{ lines: string[]; failure: string | null }> => {
+          try {
+            return {
+              lines: await ask(stage.request, stage.mode ? timeoutMs : optionalMs),
+              failure: null,
+            };
+          } catch (err) {
+            return { lines: [], failure: describeError(err) };
+          }
+        };
+
+        let read = await attempt();
+
+        // Ask again when nobody answered at all — a command that timed out, or
+        // lines that arrived in a shape nothing recognised. `NO DATA` is the
+        // ECU speaking and a refusal is the adapter speaking; both are facts
+        // about the car that a second question cannot change, and on a car
+        // with the ignition off they would turn this pass into forty seconds
+        // of waiting for the same answer five times. One repeat for the whole
+        // pass, spent by the first stage that gets no answer, because after
+        // the channel's drain a second silence is a car that is not talking.
+        if (retries.left > 0 && (read.failure !== null || isNonAnswer(read.lines, parseOpts))) {
+          retries.left -= 1;
+          read = await attempt();
+        }
+
+        // The rest of the loop is written against an exception meaning "this
+        // read failed", and that has not changed — only how many times it was
+        // asked before giving up.
+        if (read.failure) throw new Error(read.failure);
+        const lines = read.lines;
 
         if (stage.mode) {
-          const sets = parseDtcReply(lines, stage.mode, {
-            protocolCode,
-            headers: headersOn,
-          });
+          const sets = parseDtcReply(lines, stage.mode, parseOpts);
           dtcSets.set(stage.mode, sets);
-          const verdict = classifyDtc(sets, lines);
+          const verdict = classifyDtc(sets, lines, parseOpts);
           coverage.push({
             request: stage.request,
             label: stage.label,
@@ -276,20 +289,13 @@ export async function readDiagnosticsOver(
         }
 
         if (stage.request === "0101") {
-          status = parseStatus(lines);
+          status = parseStatus(lines, parseOpts);
           coverage.push({
             request: stage.request,
             label: stage.label,
-            status: status
-              ? "ok"
-              : saidNoData(lines)
-                ? "unsupported"
-                : "error",
-            detail: status
-              ? `lamp ${status.milOn ? "on" : "off"}, ECU counts ${status.dtcCount}`
-              : saidNoData(lines)
-                ? "the ECU answered NO DATA"
-                : "no readable reply",
+            ...(status
+              ? { status: "ok" as const, detail: statusDetail(status) }
+              : emptyDetail(lines, parseOpts)),
           });
           continue;
         }
@@ -298,16 +304,13 @@ export async function readDiagnosticsOver(
         coverage.push({
           request: stage.request,
           label: stage.label,
-          status: mileage
-            ? "ok"
-            : saidNoData(lines)
-              ? "unsupported"
-              : "error",
-          detail: mileage
-            ? `${mileage} km`
-            : saidNoData(lines)
-              ? "the ECU answered NO DATA — PID A6 is only required from 2019"
-              : "no readable reply",
+          ...(mileage
+            ? { status: "ok" as const, detail: `${mileage} km` }
+            : emptyDetail(
+                lines,
+                parseOpts,
+                " — PID A6 is only required from 2019",
+              )),
         });
       } catch (err) {
         coverage.push({
@@ -342,25 +345,50 @@ export async function readDiagnosticsOver(
     }
   }
 
-  if (headersOn && !faults.some((fault) => fault.moduleId !== null)) {
-    // ATH1 was accepted but nothing came back addressed — the adapter is not
-    // printing headers despite agreeing to. Say so rather than let every row
-    // silently lose its module.
+  const readAnything = coverage.some(
+    (entry) => entry.status === "ok" || entry.status === "empty",
+  );
+
+  // A pass where nothing was readable has one cause, and the adapter already
+  // named it. Say it once, up where the user reads first, instead of leaving
+  // five identical "failed" rows to be interpreted.
+  if (!readAnything && refusals.size > 0) {
+    notes.push(
+      `No ECU data was read. The adapter answered: ${[...refusals].join(", ")}.`,
+    );
+  }
+
+  if (headersOn && faults.length > 0 && !faults.some((fault) => fault.moduleId !== null)) {
+    // ATH1 was accepted and codes did come back, but none of them addressed —
+    // the adapter is not printing headers despite agreeing to. Say so rather
+    // than let every row silently lose its module.
     notes.push(
       "The adapter accepted ATH1 but sent no module addresses — module attribution is unavailable.",
     );
   }
 
+  // A module that named more codes than its reply carried is the one case
+  // where the list below is known to be incomplete. The user has to be told,
+  // because "two codes" and "two codes so far" look identical otherwise.
+  const shortLists = [...dtcSets.values()].reduce(
+    (n, sets) => n + sets.reduce((m, set) => m + set.truncated, 0),
+    0,
+  );
+  if (shortLists > 0) {
+    notes.push(
+      `A module announced more codes than its reply carried (${shortLists} list${shortLists === 1 ? "" : "s"} cut short) — the list below is incomplete.`,
+    );
+  }
+
   const storedCoverage = coverage.find((entry) => entry.request === "03");
-  if (status && headersOn && storedCoverage?.status === "ok") {
-    // Only comparable with headers on: without them the mode 03 list merges
-    // every module's codes, while PID 01 answers for the engine alone.
-    const engineStored = faults.filter(
-      (fault) => fault.status === "stored" && fault.moduleId === ENGINE_MODULE,
-    ).length;
-    if (status.dtcCount !== engineStored) {
+  if (status && storedCoverage?.status === "ok") {
+    // Both sides now count every module: PID 01 is answered by all of them
+    // and mode 03 returns all of their lists, so the totals compare with
+    // headers on or off. Only the per-module attribution needs headers.
+    const stored = faults.filter((fault) => fault.status === "stored").length;
+    if (status.dtcCount !== stored) {
       notes.push(
-        `The ECU reports ${status.dtcCount} stored code${status.dtcCount === 1 ? "" : "s"}; ${engineStored} came back from mode 03.`,
+        `The ECU reports ${status.dtcCount} stored code${status.dtcCount === 1 ? "" : "s"}; ${stored} came back from mode 03.`,
       );
     }
   }

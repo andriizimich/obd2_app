@@ -9,9 +9,9 @@ import { getClassicTransport } from "@/src/obd/classic";
 import type { AdapterInfo, ObdTransport, VehicleInfo } from "@/src/obd/transport";
 import { OdbConnectError, OdbScanError } from "@/src/obd/transport";
 import type {
-  CompatibilityLine,
   DiagnosticReport,
   DiagnosticsOptions,
+  VehicleInfoOptions,
   ObdDevice,
 } from "@/src/obd/types";
 
@@ -44,11 +44,11 @@ export class RealTransport implements ObdTransport {
     return active.connect(device);
   }
 
-  async readVehicleInfo(): Promise<VehicleInfo> {
+  async readVehicleInfo(opts?: VehicleInfoOptions): Promise<VehicleInfo> {
     if (!this.active) {
       throw new OdbConnectError("disconnected", "Adapter is not connected.");
     }
-    return this.active.readVehicleInfo();
+    return this.active.readVehicleInfo(opts);
   }
 
   async readDiagnostics(opts?: DiagnosticsOptions): Promise<DiagnosticReport> {
@@ -56,13 +56,6 @@ export class RealTransport implements ObdTransport {
       throw new OdbConnectError("disconnected", "Adapter is not connected.");
     }
     return this.active.readDiagnostics(opts);
-  }
-
-  async readCompatibility(): Promise<CompatibilityLine[]> {
-    if (!this.active) {
-      throw new OdbConnectError("disconnected", "Adapter is not connected.");
-    }
-    return this.active.readCompatibility();
   }
 
   disconnect(): void {
