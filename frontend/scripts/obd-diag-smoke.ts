@@ -111,6 +111,40 @@ function silentOnceChannel(
   return { ch, sent };
 }
 
+/** A table channel whose answers can be swapped mid-pass.
+ *
+ *  A bus that behaves differently on the other side of a reset or a pinned
+ *  protocol is the whole subject of the recovery tests, and a fixed table
+ *  cannot describe one: `set` is called from `onCommand`, which sees each
+ *  command as it is sent, which is exactly when a real bus would change. */
+function mutableChannel(
+  initial: Record<string, string>,
+  fallback = "NO DATA\r>",
+  onCommand?: (cmd: string) => void,
+): {
+  ch: Elm327Channel;
+  sent: string[];
+  set: (replies: Record<string, string>, fallback?: string) => void;
+} {
+  let replies = initial;
+  let miss = fallback;
+  const sent: string[] = [];
+  const ch = new Elm327Channel((raw) => {
+    const cmd = raw.replace(/\r$/, "").trim().toUpperCase();
+    sent.push(cmd);
+    onCommand?.(cmd);
+    setTimeout(() => feedReply(ch, replies[cmd] ?? miss), 0);
+  });
+  return {
+    ch,
+    sent,
+    set(next, nextFallback = miss) {
+      replies = next;
+      miss = nextFallback;
+    },
+  };
+}
+
 /** Response lines for a healthy car: 3 stored codes, 1 pending, 1 permanent,
  *  lamp on, a real odometer, and auto-detected CAN 11-bit/500k (ATDPN "A6"). */
 const HEALTHY: Record<string, string> = {
@@ -1935,6 +1969,141 @@ async function main() {
       hostile.includes("&lt;b&gt;") && !hostile.includes("<b>"),
       hostile.split("\n").find((l) => l.includes("bold")),
     );
+  }
+
+  // ---------- a bus the adapter cannot get onto ----------
+  // The car of 2026-09-17 20:31 answered `BUS BUSY` to everything: the adapter
+  // was alive and the ECU was not driving the line. Pinning a protocol asks
+  // that adapter to speak a different dialect, which it cannot do while it
+  // cannot transmit — the only step left is a reset of its own state, and the
+  // cost of that reset is that everything the pass set up goes with it.
+  {
+    const VW_VIN = "WVWZZZ1JZXW000001";
+    const VW_0902 =
+      "49 02 01 57 56 57 5A 5A 5A 31 4A 5A 58 57 30 30 30 30 30 31\r>";
+    /** The bus on the other side of a reset: it answers, and the adapter
+     *  replies to `ATZ`/`ATE0` the way one that just came up does. */
+    const RECOVERED: Record<string, string> = {
+      ...HEALTHY,
+      "0902": VW_0902,
+      ATZ: "ELM327 v1.5\r>",
+      ATE0: "OK\r>",
+    };
+
+    {
+      let c: ReturnType<typeof mutableChannel>;
+      c = mutableChannel({}, "BUS BUSY\r>", (cmd) => {
+        if (cmd === "ATZ") c.set(RECOVERED, "NO DATA\r>");
+      });
+      const info = await readVehicleInfoOver(c.ch, undefined, {
+        sweepIdentification: true,
+      });
+      const row = info.reads?.find((r) => r.request === "ATZ");
+      check(
+        "reset: `BUS BUSY` gets the adapter reset, not a pinned protocol",
+        c.sent.includes("ATZ") &&
+          !c.sent.includes("ATSP5") &&
+          !c.sent.includes("ATSP3"),
+        c.sent.join(","),
+      );
+      check(
+        "reset: the pass after it is the one that counts",
+        info.vin === VW_VIN && row?.status === "ok",
+        `${info.vin ?? "null"}; ${row?.status ?? "no row"} — ${row?.detail ?? ""}`,
+      );
+      check(
+        "reset: echo goes back off before anything is parsed",
+        c.sent.indexOf("ATE0") > c.sent.indexOf("ATZ"),
+        c.sent.join(","),
+      );
+    }
+
+    // Nothing heard, but nobody blaming the bus: the dialect is still the
+    // first question and the reset is the one after it.
+    {
+      let c: ReturnType<typeof mutableChannel>;
+      c = mutableChannel({}, "UNABLE TO CONNECT\r>", (cmd) => {
+        if (cmd === "ATZ") c.set(RECOVERED, "NO DATA\r>");
+      });
+      const info = await readVehicleInfoOver(c.ch, undefined, {
+        sweepIdentification: true,
+      });
+      check(
+        "recovery order: the protocol is pinned first, the adapter reset after",
+        c.sent.includes("ATSP5") &&
+          c.sent.includes("ATSP3") &&
+          c.sent.indexOf("ATZ") > c.sent.indexOf("ATSP3"),
+        c.sent.join(","),
+      );
+      check(
+        "recovery order: the bus that came back after the reset is the one reported",
+        info.vin === VW_VIN,
+        String(info.vin),
+      );
+    }
+
+    // …and the flag that decides whether any of this runs has to count what
+    // the car said, not the commands the app wrote into `reads` itself. Both
+    // pins are spent before the second one works; while an accepted command
+    // counted as "heard", the loop stopped at `ATSP5` and the recovery it was
+    // meant to start ended on its first step.
+    {
+      let c: ReturnType<typeof mutableChannel>;
+      c = mutableChannel({}, "UNABLE TO CONNECT\r>", (cmd) => {
+        if (cmd === "ATSP3") c.set(RECOVERED, "NO DATA\r>");
+      });
+      const info = await readVehicleInfoOver(c.ch, undefined, {
+        sweepIdentification: true,
+      });
+      check(
+        "recovery: a pin the adapter accepted is not the bus answering",
+        c.sent.includes("ATSP3") && info.vin === VW_VIN,
+        `${info.vin ?? "null"}: ${c.sent.join(",")}`,
+      );
+    }
+
+    // A reset the adapter does not clear is the end of it: the line is held by
+    // something `ATZ` cannot reach, and a retry pass would only spend another
+    // minute saying so.
+    {
+      const c = mutableChannel({}, "BUS BUSY\r>");
+      const info = await readVehicleInfoOver(c.ch, undefined, {
+        sweepIdentification: true,
+      });
+      const row = info.reads?.find((r) => r.request === "ATZ");
+      const passes = c.sent.filter((cmd) => cmd === "0902").length;
+      check(
+        "reset: a reset that did not clear the bus ends the recovery",
+        row?.status === "error" && passes === 1,
+        `${row?.status ?? "no row"} (${row?.detail ?? ""}); 0902 asked ${passes}×`,
+      );
+    }
+
+    // The common case pays nothing: a car that answers never sees `ATZ`.
+    {
+      const c = tableChannel({ ...HEALTHY, "0902": VW_0902 });
+      const info = await readVehicleInfoOver(c.ch, undefined, {
+        sweepIdentification: true,
+      });
+      check(
+        "reset: a bus that answers is never reset",
+        !c.sent.includes("ATZ") && info.vin === VW_VIN,
+        c.sent.join(","),
+      );
+    }
+
+    // …and neither does the connect-time read, which is not allowed the long
+    // recovery at all: two extra passes are exactly what a driver waiting on
+    // the handshake cannot pay.
+    {
+      const c = tableChannel({}, "BUS BUSY\r>");
+      await readVehicleInfoOver(c.ch);
+      check(
+        "reset: connect time does not reset the adapter either",
+        !c.sent.includes("ATZ"),
+        c.sent.join(","),
+      );
+    }
   }
 
   if (failures.length > 0) {

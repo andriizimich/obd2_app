@@ -1076,6 +1076,73 @@ async function restoreReadTiming(
 }
 
 /**
+ * The adapter naming the bus as the fault, rather than the car.
+ *
+ * `BUS BUSY` is the line held — a clone stuck mid-init or a bus nobody is
+ * driving — and `BUS ERROR` a framing failure on the wire. Both are printed
+ * by the adapter about itself, and neither is about which dialect the car
+ * speaks, which is why nothing in {@link FORCED_PROTOCOLS} can clear them.
+ * `BUS INIT: ...ERROR` is deliberately not matched: that one *is* about the
+ * init the protocol choice decides.
+ */
+const BUS_FAULT = /\bbus (busy|error)\b/i;
+
+/**
+ * Reset the adapter itself — the last step of a recovery that has run out of
+ * things to say about the car.
+ *
+ * Everything above this is a statement about the bus: the wrong protocol, a
+ * slow ECU, a module that keeps quiet. `ATZ` is a statement about the adapter,
+ * and the only command that makes one: a clone wedged mid-init, or holding a
+ * line it will not let go of, clears its own state and inits the bus afresh on
+ * the next request. Re-pinning a protocol asks a stuck adapter to speak a
+ * different dialect, which it cannot do while it cannot transmit at all.
+ *
+ * The price is that `ATZ` clears everything, so what the pass set up before it
+ * has to go back out — and `ATE0` above all, because echo returns with the
+ * reset and an echoed command reads as a reply. If the adapter does not answer
+ * even that, it is mute rather than stuck, and a retry pass would be parsing
+ * its own commands back as data: the reset reports failure and nothing more is
+ * asked of it.
+ */
+async function hardResetAdapter(
+  elm: Elm327Channel,
+  transcript: string[],
+): Promise<{ ok: boolean; detail: string }> {
+  const reset = await askQuiet(elm, transcript, "ATZ", 8000);
+  if (reset === null) {
+    return {
+      ok: false,
+      detail: "the adapter did not answer its own reset — nothing left to retry on",
+    };
+  }
+  // A reset answers with the adapter's own name, and it happens without the
+  // bus being involved at all. A bus fault coming back instead means the state
+  // that produced it survived the command that exists to clear it.
+  if (reset.some((line) => BUS_FAULT.test(line))) {
+    return {
+      ok: false,
+      detail: "the adapter answered its own reset with a bus fault — the line is held, not the adapter",
+    };
+  }
+  const echo = await askQuiet(elm, transcript, "ATE0", 2000);
+  if (echo === null) {
+    return {
+      ok: false,
+      detail: "the adapter reset but then stopped answering — a retry would read its own commands back as data",
+    };
+  }
+  // Back to the multi-frame setting this pass opened with. Off by default
+  // after a reset, and a VIN that arrives in frames is the one read here that
+  // notices.
+  await askQuiet(elm, transcript, "ATAL", 2000);
+  return {
+    ok: true,
+    detail: "the bus stayed silent, so the adapter itself was reset",
+  };
+}
+
+/**
  * The VIN read that names its module, for the car whose engine controller
  * does not answer the functional request.
  *
@@ -1492,9 +1559,16 @@ export async function readVehicleInfoOver(
       ecuName,
       mileage,
       best: candidates[0] ?? null,
+      // What the car said, not what the adapter was told. `ATDPN` names the
+      // adapter's own protocol, a forced protocol is a command it accepted,
+      // and both are rows this app wrote into `reads` itself — counting them
+      // made this flag true on the very passes that exist because the bus had
+      // said nothing, so the first pin ended the recovery it was meant to
+      // start. Every request that reaches the car is a hex service, so the
+      // `AT` prefix is the whole test.
       heardAnything: reads.some(
         (r) =>
-          r.request !== "ATDPN" &&
+          !r.request.toUpperCase().startsWith("AT") &&
           r.label !== "Read timing" &&
           (r.status === "ok" || r.status === "unsupported"),
       ),
@@ -1523,21 +1597,45 @@ export async function readVehicleInfoOver(
     // for each read, and a pass where every one of them is empty is the
     // adapter, not the car: two more full passes would spend two more minutes
     // asking a mute device to speak.
+    //
+    // Last, and for the adapter rather than the car: an adapter that says
+    // `BUS BUSY` is not choosing the wrong dialect, it cannot transmit, and
+    // only a reset of its own state clears that. It is skipped when the pins
+    // would have been wasted on it, and it is the one step here that costs the
+    // adapter its settings — see `hardResetAdapter`.
     const adapterMute = reads.every((r) => (r.raw?.length ?? 0) === 0);
+    const busRefused = reads.some((r) =>
+      (r.raw ?? []).some((line) => BUS_FAULT.test(line)),
+    );
     if (opts.sweepIdentification === true && !pass.heardAnything && !adapterMute) {
-      for (const protocol of FORCED_PROTOCOLS) {
-        const pinned = await askQuiet(elm, rawLines, protocol.command, 6000);
-        if (refusedCommand(pinned)) continue;
+      if (!busRefused) {
+        for (const protocol of FORCED_PROTOCOLS) {
+          const pinned = await askQuiet(elm, rawLines, protocol.command, 6000);
+          if (refusedCommand(pinned)) continue;
+          reads.push({
+            request: protocol.command,
+            label: "Protocol forced",
+            status: "ok",
+            detail: `${protocol.name} — the auto search had read nothing`,
+          });
+          const retry = await askEverything();
+          if (retry.heardAnything) {
+            pass = retry;
+            break;
+          }
+        }
+      }
+      if (!pass.heardAnything) {
+        const reset = await hardResetAdapter(elm, rawLines);
         reads.push({
-          request: protocol.command,
-          label: "Protocol forced",
-          status: "ok",
-          detail: `${protocol.name} — the auto search had read nothing`,
+          request: "ATZ",
+          label: "Adapter reset",
+          status: reset.ok ? "ok" : "error",
+          detail: reset.detail,
         });
-        const retry = await askEverything();
-        if (retry.heardAnything) {
-          pass = retry;
-          break;
+        if (reset.ok) {
+          const retry = await askEverything();
+          if (retry.heardAnything) pass = retry;
         }
       }
       // Back to the auto search: a pinned protocol is right for one bad bus
