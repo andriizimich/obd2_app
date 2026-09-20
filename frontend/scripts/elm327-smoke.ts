@@ -436,6 +436,17 @@ async function main() {
     );
     check("reply: STOPPED is worth asking again", isNonAnswer(["STOPPED"], {}));
     check("reply: NO DATA still is not", !isNonAnswer(["NO DATA"], {}));
+
+    // `BUS BUSY` is the adapter talking about the bus, like `UNABLE TO
+    // CONNECT`, and a repeat reaches the bus no better than the first ask.
+    // It used to land in the "nothing recognised" pile and read as an
+    // unanswered question — which spent the one repeat a pass is given on a
+    // second identical complaint, and told the driver the car had refused.
+    const busy = emptyDetail(["BUS BUSY"], {});
+    check("reply: BUS BUSY is not read as the car refusing", busy.detail.includes("could not transmit"), busy.detail);
+    check("reply: BUS BUSY keeps the request honest about where it stopped", busy.detail.includes("never reached the ECU"), busy.detail);
+    check("reply: BUS BUSY does not spend the repeat", !isNonAnswer(["BUS BUSY"], {}));
+    check("reply: BUS ERROR is the same fault", emptyDetail(["BUS ERROR"], {}).detail.includes("could not transmit"));
   }
 
   if (failures.length > 0) {

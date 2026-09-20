@@ -80,6 +80,28 @@ const NOISE_EXACT = new Set([
   "unable to connect",
 ]);
 
+/**
+ * The adapter saying it could not put the request on the wire.
+ *
+ * `BUS BUSY` is the line held — a clone stuck mid-init, or a bus nobody is
+ * driving — and `BUS ERROR` a framing failure on the wire. Both are printed
+ * by the adapter about itself, which makes them the one adapter fault a
+ * caller has to act on rather than report: no protocol choice clears them
+ * and no repeat asks a better question, because the car never saw the
+ * request. `BUS INIT: …ERROR` is deliberately not matched — that one *is*
+ * about the init the protocol choice decides.
+ *
+ * It lives here, beside the noise list, because both sides of the app need
+ * the same reading of the same bytes: the connect-time identification, which
+ * resets the adapter when it sees one, and the diagnostic pass, which is
+ * where a driver first meets it.
+ */
+const BUS_FAULT = /\bbus (busy|error)\b/i;
+
+export function busFaultIn(lines: readonly string[] | null | undefined): boolean {
+  return (lines ?? []).some((line) => BUS_FAULT.test(line));
+}
+
 export function isNoiseLine(line: string): boolean {
   const t = line.trim().toLowerCase();
   if (t === "") return true;

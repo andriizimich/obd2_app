@@ -5,7 +5,7 @@
 
 import { Elm327Channel } from "../src/obd/at";
 import { decodeOdometer, decodeStatus, extractPidData, readOdometer } from "../src/obd/mode01";
-import { readDiagnosticsOver } from "../src/obd/diagnostics";
+import { carWasRead, readDiagnosticsOver } from "../src/obd/diagnostics";
 import { emptyDetail } from "../src/obd/reply";
 import {
   decodeDtcPair,
@@ -1806,6 +1806,77 @@ async function main() {
     );
   }
 
+  // ---------- `BUS BUSY`, at the point the driver meets it ----------
+  // The scan is where this fault is first seen, and until now it had no answer
+  // to it: five reads, five identical complaints, and not one command that
+  // could clear the line while the app sat on the one that can. The roll call
+  // in the second case below is the screen the tests here exist to prevent.
+
+  {
+    // The bus comes back the moment the adapter is reset — which is the whole
+    // point of resetting it, and why the reads after it are the ones the
+    // report has to be built from.
+    let c: ReturnType<typeof mutableChannel>;
+    c = mutableChannel({}, "BUS BUSY\r>", (cmd) => {
+      if (cmd === "ATZ") c.set({ ...HEALTHY, ATZ: "ELM327 v1.5\r>", ATE0: "OK\r>" });
+    });
+    const report = await readDiagnosticsOver(c.ch, FAST);
+    const resetRow = report.coverage.find((x) => x.request === "ATZ");
+    check(
+      "scan: an adapter that cannot transmit is reset before the pass gives up",
+      c.sent.includes("ATZ") && report.faults.length > 0,
+      `${c.sent.filter((s) => s === "ATZ").length}× ATZ; ${report.faults.length} fault(s)`,
+    );
+    check(
+      "scan: the reset is spent once, not once per stage",
+      c.sent.filter((s) => s === "ATZ").length === 1,
+      c.sent.join(","),
+    );
+    check(
+      "scan: the reset is on the roll call, where it can be seen to have been tried",
+      resetRow?.status === "ok",
+      resetRow?.detail ?? "no row",
+    );
+    check(
+      "scan: echoing is off again before anything is parsed",
+      c.sent.indexOf("ATE0") > c.sent.indexOf("ATZ"),
+      c.sent.join(","),
+    );
+  }
+
+  {
+    // A reset the adapter does not clear is the end of it: the line is held by
+    // something `ATZ` cannot reach. What the report says then is the whole
+    // test — a bare `BUS BUSY` against every row reads as five different
+    // failures, and the one fact worth having is that none of them was the car.
+    const c = tableChannel({}, "BUS BUSY\r>");
+    const report = await readDiagnosticsOver(c.ch, FAST);
+    const resetRow = report.coverage.find((x) => x.request === "ATZ");
+    const stored = coverageOf(report, "03");
+    check(
+      "scan: a reset that did not clear the bus says so",
+      resetRow?.status === "error" &&
+        (resetRow.detail ?? "").includes("the line is held, not the adapter"),
+      resetRow?.detail ?? "no row",
+    );
+    check(
+      "scan: a reset is not the car answering",
+      !carWasRead(report.coverage),
+      report.coverage.map((x) => `${x.request} ${x.status}`).join(" · "),
+    );
+    check(
+      "scan: a read the adapter could not transmit is not read as the car refusing",
+      (stored?.detail ?? "").includes("never reached the ECU"),
+      stored?.detail ?? "no row",
+    );
+    check(
+      "scan: the message still refuses to call an unread car healthy",
+      reportText(VW, report).includes("Nothing could be read from the ECU"),
+      reportText(VW, report).split("\n").find((l) => l.includes("read from the ECU")) ??
+        "no line",
+    );
+  }
+
   // ---------- the Telegram message ----------
   // This text is the whole point of the app for the person receiving it, and
   // it is the one place where a fabricated "all clear" would be believed.
@@ -2092,14 +2163,34 @@ async function main() {
       );
     }
 
-    // …and neither does the connect-time read, which is not allowed the long
-    // recovery at all: two extra passes are exactly what a driver waiting on
-    // the handshake cannot pay.
+    // The connect-time read is not allowed the *long* recovery — two extra
+    // passes over a silent bus are exactly what a driver waiting on the
+    // handshake cannot pay — but the cheap half of it is not optional there.
+    // This used to pin the opposite: a `BUS BUSY` at connect produced seven
+    // rows naming the fault and not one command that could clear it, while
+    // the app sat on the cure. The adapter naming the bus as the fault is the
+    // case where doing nothing is never the cheaper answer, because the pass
+    // that follows it reads nothing either.
     {
       const c = tableChannel({}, "BUS BUSY\r>");
       await readVehicleInfoOver(c.ch);
       check(
-        "reset: connect time does not reset the adapter either",
+        "reset: connect time resets an adapter that cannot transmit",
+        c.sent.includes("ATZ") &&
+          !c.sent.includes("ATSP5") &&
+          !c.sent.includes("ATSP3"),
+        c.sent.join(","),
+      );
+    }
+
+    // …and the reset stays where it belongs. A bus that answers — even to say
+    // `NO DATA` to everything — has not named a fault, and resetting an
+    // adapter that is working costs the driver the handshake all over again.
+    {
+      const c = tableChannel({}, "NO DATA\r>");
+      await readVehicleInfoOver(c.ch);
+      check(
+        "reset: connect time leaves a bus that answers alone",
         !c.sent.includes("ATZ"),
         c.sent.join(","),
       );

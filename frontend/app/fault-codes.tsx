@@ -17,6 +17,7 @@ import FaultRow from "@/src/components/FaultRow";
 import NeonButton from "@/src/components/NeonButton";
 import { useToast } from "@/src/components/Toast";
 import { useObd } from "@/src/context/ObdContext";
+import { carWasRead } from "@/src/obd/diagnostics";
 import type { DiagnosticReport } from "@/src/obd/types";
 import { sendReport } from "@/src/api/telegram";
 import { colors, font, radius, spacing, type } from "@/src/theme";
@@ -134,9 +135,7 @@ export default function FaultCodesScreen() {
   // The list itself is no longer drawn — the report still carries it, and so
   // does the chat — but the distinction it makes is not a display detail, so
   // the computation stays.
-  const readable =
-    report?.coverage.some((c) => c.status === "ok" || c.status === "empty") ??
-    false;
+  const readable = report ? carWasRead(report.coverage) : false;
   // The pipeline names an unknown car "Unknown" (`unidentifiedVehicle`), which
   // is a placeholder for the code, not a word for a driver — and this line is
   // now the whole identity on screen.

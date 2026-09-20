@@ -1,5 +1,6 @@
 import { BUILD_STAMP } from "@/src/build";
 import { groupDigits } from "@/src/format";
+import { carWasRead } from "@/src/obd/diagnostics";
 import { isFullVin, VIN_LENGTH } from "@/src/utils/vin";
 import type { Coverage, DiagnosticReport, Fault, Vehicle } from "@/src/obd/types";
 
@@ -193,9 +194,7 @@ export function reportText(vehicle: Vehicle, report: DiagnosticReport): string {
   // Whether anything at all was read decides how the codes are introduced —
   // an empty list from an ECU that answered nothing is not a clean bill of
   // health, and must never be sent as one.
-  const readSomething = report.coverage.some(
-    (c) => c.status === "ok" || c.status === "empty",
-  );
+  const readSomething = carWasRead(report.coverage);
 
   if (report.status?.milOn) opening.push("⚠️ Check engine light: ON");
 

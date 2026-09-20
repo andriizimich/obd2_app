@@ -39,7 +39,12 @@ import {
   type DtcMode,
   type RawDtcSet,
 } from "@/src/obd/mode03";
-import { detectProtocolCode, PROTOCOL_NAMES } from "@/src/obd/mode09";
+import { busFaultIn } from "@/src/obd/frames";
+import {
+  detectProtocolCode,
+  hardResetAdapter,
+  PROTOCOL_NAMES,
+} from "@/src/obd/mode09";
 import type {
   Coverage,
   CoverageStatus,
@@ -49,6 +54,30 @@ import type {
   DtcStatus,
   Fault,
 } from "@/src/obd/types";
+
+/**
+ * Whether the pass got anything at all off the car.
+ *
+ * The distinction this draws is between "the ECU answered and had nothing to
+ * report" and "nothing was read", and every screen that shows a result turns
+ * on it: a clean bill of health sent for a car that answered nothing is the
+ * one lie this app must not tell. `ok` and `empty` are both the car speaking —
+ * `47 00` (no pending codes) is as much an answer as a list of codes.
+ *
+ * An `AT` request is not. The pass now spends one on resetting an adapter
+ * that answered `BUS BUSY`, and it comes back `ok` — counted here, that alone
+ * would report a car nothing was read from as healthy. It lives in one place
+ * because three callers ask the same question (the report's own note, the
+ * Telegram message, the fault-code screen) and a fourth definition of it
+ * would be the one that keeps the old answer.
+ */
+export function carWasRead(coverage: Coverage[]): boolean {
+  return coverage.some(
+    (entry) =>
+      !/^AT/i.test(entry.request) &&
+      (entry.status === "ok" || entry.status === "empty"),
+  );
+}
 
 /** Raw adapter lines kept for the debug surface. Enough for a full pass
  *  including a multi-frame reply, small enough to render without thought. */
@@ -150,6 +179,15 @@ export async function readDiagnosticsOver(
   const notes: string[] = [];
   /** Extra commands this pass may spend on questions nobody answered. */
   const retries = { left: 1 };
+  /**
+   * Whether the one reset this pass is allowed has been spent.
+   *
+   * Once, not once per stage: `BUS BUSY` is a property of the adapter's state,
+   * and a reset that did not clear it will not clear it for the next read
+   * either. Five resets would be five `ATZ` on a bus that is already refusing,
+   * and the driver waiting through all of them.
+   */
+  let busResetSpent = false;
 
   /** What the adapter said when it had no data, for the summary note. */
   const refusals = new Set<string>();
@@ -269,6 +307,47 @@ export async function readDiagnosticsOver(
           read = await attempt();
         }
 
+        // The adapter naming the bus as the fault. This is the one failure
+        // here that is about the adapter's own ability to transmit: `BUS BUSY`
+        // is the line held and `BUS ERROR` a framing failure on the wire, and
+        // neither is the car declining to answer. No protocol choice clears
+        // them and no repeat asks a better question — which is why the repeat
+        // budget above never fires on one — so this is the only step that can.
+        //
+        // On the first stage that meets it rather than after the fifth has
+        // failed the same way. The identification pass waits for the whole
+        // read because there the read is one question with one answer; here
+        // four more stages would spend four more timeouts learning nothing,
+        // with the driver watching the progress bar move through them. A pass
+        // that ends `03 ✗ · 07 ✗ · 0A ✗ · 0101 ✗ · 01A6 ✗` and never tried is
+        // the one screen this app must not produce.
+        if (!busResetSpent && busFaultIn(read.lines)) {
+          busResetSpent = true;
+          const reset = await hardResetAdapter(elm, rawLines);
+          coverage.push({
+            request: "ATZ",
+            label: "Adapter reset",
+            status: reset.ok ? "ok" : "error",
+            detail: reset.detail,
+          });
+          if (reset.ok) {
+            // ATZ puts the adapter back to its factory defaults, and headers
+            // are one of them. `parseOpts` was built from what ATH1 answered
+            // before this loop began, so headers go back to exactly that:
+            // turning them on for a pass that had found them unavailable
+            // would parse every remaining reply at the wrong width. Echo is
+            // the other default and the dangerous one — a command echoed back
+            // reads as a reply — and `hardResetAdapter` has already turned it
+            // off. `ATAL`, which this pass opens with, is restored there too.
+            await setHeaders(elm, headersOn, (lines) => {
+              for (const line of lines) {
+                if (rawLines.length < RAW_LINE_CAP) rawLines.push(line);
+              }
+            });
+            read = await attempt();
+          }
+        }
+
         // The rest of the loop is written against an exception meaning "this
         // read failed", and that has not changed — only how many times it was
         // asked before giving up.
@@ -345,9 +424,7 @@ export async function readDiagnosticsOver(
     }
   }
 
-  const readAnything = coverage.some(
-    (entry) => entry.status === "ok" || entry.status === "empty",
-  );
+  const readAnything = carWasRead(coverage);
 
   // A pass where nothing was readable has one cause, and the adapter already
   // named it. Say it once, up where the user reads first, instead of leaving

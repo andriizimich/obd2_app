@@ -16,7 +16,7 @@
 
 import type { Elm327Channel } from "@/src/obd/at";
 import { describeTiming } from "@/src/obd/at";
-import { readLineFrame, refusalAt } from "@/src/obd/frames";
+import { busFaultIn, readLineFrame, refusalAt } from "@/src/obd/frames";
 import { parseOdometer, parseStatus } from "@/src/obd/mode01";
 import { describeError, emptyDetail, isNonAnswer } from "@/src/obd/reply";
 import type { AdapterInfo, VehicleInfo } from "@/src/obd/transport";
@@ -1185,18 +1185,6 @@ async function restoreReadTiming(
 }
 
 /**
- * The adapter naming the bus as the fault, rather than the car.
- *
- * `BUS BUSY` is the line held — a clone stuck mid-init or a bus nobody is
- * driving — and `BUS ERROR` a framing failure on the wire. Both are printed
- * by the adapter about itself, and neither is about which dialect the car
- * speaks, which is why nothing in {@link FORCED_PROTOCOLS} can clear them.
- * `BUS INIT: ...ERROR` is deliberately not matched: that one *is* about the
- * init the protocol choice decides.
- */
-const BUS_FAULT = /\bbus (busy|error)\b/i;
-
-/**
  * Reset the adapter itself — the last step of a recovery that has run out of
  * things to say about the car.
  *
@@ -1214,7 +1202,7 @@ const BUS_FAULT = /\bbus (busy|error)\b/i;
  * its own commands back as data: the reset reports failure and nothing more is
  * asked of it.
  */
-async function hardResetAdapter(
+export async function hardResetAdapter(
   elm: Elm327Channel,
   transcript: string[],
 ): Promise<{ ok: boolean; detail: string }> {
@@ -1228,7 +1216,7 @@ async function hardResetAdapter(
   // A reset answers with the adapter's own name, and it happens without the
   // bus being involved at all. A bus fault coming back instead means the state
   // that produced it survived the command that exists to clear it.
-  if (reset.some((line) => BUS_FAULT.test(line))) {
+  if (busFaultIn(reset)) {
     return {
       ok: false,
       detail: "the adapter answered its own reset with a bus fault — the line is held, not the adapter",
@@ -1713,11 +1701,31 @@ export async function readVehicleInfoOver(
     // would have been wasted on it, and it is the one step here that costs the
     // adapter its settings — see `hardResetAdapter`.
     const adapterMute = reads.every((r) => (r.raw?.length ?? 0) === 0);
-    const busRefused = reads.some((r) =>
-      (r.raw ?? []).some((line) => BUS_FAULT.test(line)),
-    );
-    if (opts.sweepIdentification === true && !pass.heardAnything && !adapterMute) {
-      if (!busRefused) {
+    const busRefused = reads.some((r) => busFaultIn(r.raw));
+    // Two ways in, and the bus fault is the one that is worth trying for at
+    // connect as well as after a scan.
+    //
+    // A screen that showed seven reads all answering `BUS BUSY`, and not one
+    // line on it that tried, is what this gate cost. The adapter was naming
+    // the fault itself, and the app already knew the cure — a reset of the
+    // adapter's own state, one command and one repeat — and did not run it,
+    // because that branch was written for the pass that runs with the codes
+    // already in hand.
+    //
+    // What the reset is worth when it *fails* is the other half: it is the
+    // only read here that is about the adapter rather than the car, so its
+    // answer separates a clone wedged mid-init (which the reset clears) from
+    // a line held by something else (which no command from this side can
+    // clear). That distinction is the whole question a `BUS BUSY` screen
+    // leaves open, and it used to be settled by the absence of any evidence
+    // at all.
+    //
+    // The long road — three more passes under pinned protocols — stays where
+    // it was. That one is a statement about the car, and at connect time the
+    // driver is waiting on it before a single fault code has been read.
+    const mayRecover = !pass.heardAnything && !adapterMute;
+    if (mayRecover && (busRefused || opts.sweepIdentification === true)) {
+      if (opts.sweepIdentification === true && !busRefused) {
         for (const protocol of FORCED_PROTOCOLS) {
           const pinned = await askQuiet(elm, rawLines, protocol.command, 6000);
           if (refusedCommand(pinned)) continue;
@@ -1748,8 +1756,12 @@ export async function readVehicleInfoOver(
         }
       }
       // Back to the auto search: a pinned protocol is right for one bad bus
-      // and wrong for the next car this adapter is plugged into.
-      await askQuiet(elm, rawLines, "ATSP0", 6000);
+      // and wrong for the next car this adapter is plugged into. Only the
+      // sweep pins anything, so only the sweep has something to undo — the
+      // reset above leaves the adapter on the default this restores.
+      if (opts.sweepIdentification === true) {
+        await askQuiet(elm, rawLines, "ATSP0", 6000);
+      }
     }
   } finally {
     // The longer wait belongs to the reads above, and it is put back whatever

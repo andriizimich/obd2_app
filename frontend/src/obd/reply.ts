@@ -11,7 +11,13 @@
 // It lives here rather than in either caller because a second copy of these
 // rules is how the two paths would come to disagree about the same bytes.
 
-import { isNoiseLine, negativeResponse, parseMessages, saidNoData } from "@/src/obd/frames";
+import {
+  busFaultIn,
+  isNoiseLine,
+  negativeResponse,
+  parseMessages,
+  saidNoData,
+} from "@/src/obd/frames";
 import type { ParseOptions } from "@/src/obd/frames";
 import type { CoverageStatus } from "@/src/obd/types";
 
@@ -69,6 +75,7 @@ type EmptyReason =
   | { kind: "negative"; unsupported: boolean; text: string }
   | { kind: "refusal"; text: string }
   | { kind: "interrupted"; text: string }
+  | { kind: "bus"; text: string }
   | { kind: "silence"; quoted: string };
 
 /**
@@ -86,6 +93,15 @@ function emptyReason(lines: string[], opts: ParseOptions): EmptyReason {
     const refusal = negativeResponse(message.payload);
     if (!refusal) continue;
     return { kind: "negative", unsupported: UNSUPPORTED_NRC.has(refusal.nrc), text: refusal.text };
+  }
+  // Before the generic refusal, because `BUS BUSY` is one and the sentence
+  // the generic branch builds is wrong twice over: the adapter recognised its
+  // own fault perfectly, and the car was never asked. Read as "answered, but
+  // none of it was recognised", it sends whoever is holding the phone looking
+  // for a parsing bug in an app whose only real problem is that it cannot put
+  // a byte on the wire — and the fix for that is a different one entirely.
+  if (busFaultIn(lines)) {
+    return { kind: "bus", text: quoteLines(lines) };
   }
   const refusal = adapterRefusal(lines);
   if (refusal) {
@@ -126,6 +142,17 @@ export function emptyDetail(
         status: "error",
         detail: `the adapter was interrupted mid-command (${reason.text}) — this request never reached the ECU`,
       };
+    case "bus":
+      // The same reassurance for the same reason. The adapter is not passing
+      // on anything the car said; it is saying that it could not transmit, so
+      // every read in the pass will say this until something clears the line.
+      // What clears it is a reset of the adapter, which is the caller's move
+      // and not this function's — this is only the row that has to be honest
+      // about which of the two ends is broken.
+      return {
+        status: "error",
+        detail: `the adapter could not transmit (${reason.text}) — this request never reached the ECU`,
+      };
     default:
       // Something did come back and nothing recognised it. Calling that "no
       // readable reply" is the most expensive lie this file could tell: it
@@ -156,6 +183,12 @@ export function emptyDetail(
  * talking, and for the strongest reason of the three: the request never left
  * the adapter. Retrying it is not asking the car the same thing twice, it is
  * asking it once.
+ *
+ * `BUS BUSY` is the adapter talking too, and it stays out. The first request
+ * that meets it reaches the bus no better than the second one will, because
+ * the line is held by something neither of them can change — and spending the
+ * one repeat this pass is given on it buys a second identical complaint
+ * instead of a second chance at a read that was merely unlucky.
  */
 export function isNonAnswer(lines: string[], opts: ParseOptions = {}): boolean {
   const kind = emptyReason(lines, opts).kind;
