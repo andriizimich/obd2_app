@@ -2,9 +2,11 @@ import React, { createContext, useContext, useMemo, useState } from "react";
 
 import type { Identification } from "@/src/obd/identify";
 import { identifyVehicle, unidentified } from "@/src/obd/identify";
+import { describeError } from "@/src/obd/reply";
 import type { ObdTransport } from "@/src/obd/transport";
 import { isFullVin } from "@/src/utils/vin";
 import type {
+  Coverage,
   DiagnosticReport,
   DiagnosticsOptions,
   Fault,
@@ -59,6 +61,26 @@ function moduleAddressesIn(report: DiagnosticReport): number[] {
     if (typeof module.moduleId === "number") addresses.add(module.moduleId);
   }
   return [...addresses];
+}
+
+/**
+ * The row that stands for a second identification pass which never happened.
+ *
+ * A throw from that pass is a real outcome and it used to be discarded whole
+ * (`catch {}`), which made it indistinguishable on screen from a pass that
+ * ran and read nothing: the evidence stayed as the *first* read left it — the
+ * one taken before the engine was started — and no line on the screen said a
+ * second attempt had been made at all. Those two want opposite responses
+ * (one is about the car, the other about the app), and the request column is
+ * where the difference has to show.
+ */
+function secondReadFailed(err: unknown): Coverage {
+  return {
+    request: "pass 2",
+    label: "Identification, second pass",
+    status: "error",
+    detail: `the second identification pass failed: ${describeError(err)}`,
+  };
 }
 
 export function ObdProvider({ children }: { children: React.ReactNode }) {
@@ -126,12 +148,29 @@ export function ObdProvider({ children }: { children: React.ReactNode }) {
               sweepIdentification: true,
               moduleAddresses: moduleAddressesIn(result),
             });
-            if (again.vehicle.vin) {
-              setVehicle(again.vehicle);
-              setEvidence(again.evidence);
-            }
-          } catch {
-            // Best effort: the report stands without a name on it.
+            // The evidence is kept whether or not a VIN came back, and the
+            // asymmetry with the line below is the point. A vehicle without a
+            // VIN is not worth setting — the dashboard would keep the name it
+            // already had. The *reads* are, always: this pass is the one that
+            // ran on a warm bus, and when it finds no VIN its rows are the
+            // only record of what the car actually said (`NO DATA`, `7F 09
+            // 12`, `STOPPED`) — exactly the case where somebody needs them,
+            // and exactly the case the old `if (again.vehicle.vin)` threw
+            // away, leaving the key-off read on screen as the final word.
+            if (again.vehicle.vin) setVehicle(again.vehicle);
+            setEvidence(again.evidence);
+          } catch (err) {
+            // Best effort: the report stands without a name on it. But not
+            // without a note that the attempt was made and how it ended.
+            // `evidence` is set by every connect, so the fallback is for the
+            // impossible case only — and it carries a reason rather than an
+            // empty string, which the screen would render as a warning row
+            // with nothing written in it.
+            const before = evidence ?? unidentified("Vehicle identification was skipped.").evidence;
+            setEvidence({
+              ...before,
+              reads: [...(before.reads ?? []), secondReadFailed(err)],
+            });
           }
         }
         setReport(result);

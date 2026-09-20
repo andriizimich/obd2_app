@@ -12,6 +12,7 @@ import {
   readEcuName,
   readVin,
 } from "../src/obd/mode09";
+import { emptyDetail, isNonAnswer } from "../src/obd/reply";
 
 const failures: string[] = [];
 
@@ -207,6 +208,58 @@ async function main() {
     );
   }
 
+  // 14d. The same car on a later read, where the counter restarts while the
+  //      first round of fields is still open — `01 02 03 04 05 06` then `01`
+  //      again. Read as one run of bytes and cut every sixteen, that shifts
+  //      every field after the first: the three CALIDs below came back as
+  //      `7539073, 75583630000, 07811896, 000007811476`, half of them
+  //      truncated and the rest carrying a neighbour's tail. The car's own
+  //      answer is what this expects.
+  {
+    const ids = parseCalid([
+      "49 04 01 37 35 33 39",
+      "49 04 02 30 37 33 00",
+      "49 04 03 00 00 00 00",
+      "7F 09 78",
+      "49 04 04 00 00 00 00",
+      "49 04 05 37 35 35 38",
+      "49 04 06 33 36 33 00",
+      "49 04 01 30 30 30 30",
+      "49 04 07 00 00 00 00",
+      "49 04 08 00 00 00 00",
+      "49 04 02 30 37 38 31",
+      "49 04 03 31 38 39 36",
+      "49 04 04 00 00 00 00",
+      "49 04 05 30 30 30 30",
+      "49 04 06 30 37 38 31",
+      "49 04 07 31 34 37 36",
+      "49 04 08 00 00 00 00",
+    ]);
+    check(
+      "mode09: a counter that restarts mid-reply opens the next field",
+      JSON.stringify(ids) ===
+        JSON.stringify(["7539073", "7558363", "000007811896", "000007811476"]),
+      JSON.stringify(ids),
+    );
+  }
+
+  // 14e. The other shape must not move: an answer that names the PID once and
+  //      then keeps sending, as a CAN multi-frame reply does. Sixteen bytes a
+  //      field, cut on the stride, exactly as before.
+  {
+    const ids = parseCalid([
+      "49 04 01 37 35 33 39 30 37 33 00",
+      "00 00 00 00 00 00 00 00 00",
+      "49 04 02 30 37 38 31 31 38 39 36",
+      "00 00 00 00 00 00 00 00 00",
+    ]);
+    check(
+      "mode09: an unnumbered multi-frame answer still reads on the 16-byte stride",
+      JSON.stringify(ids) === JSON.stringify(["7539073", "07811896"]),
+      JSON.stringify(ids),
+    );
+  }
+
   // 15. ECU name with null padding.
   {
     const name = parseEcuName([
@@ -328,6 +381,61 @@ async function main() {
       settled = true;
     }
     check("drain: dispose releases a command parked on the drain", settled);
+  }
+
+  // 22. Once an adapter has shown it prints prompts, a short silence no longer
+  //     ends a command. The prompt is the adapter's own word for "finished",
+  //     and until it comes the adapter is still listening to the bus — which
+  //     is what ATST buys. A command cut short there is a command the next
+  //     write lands inside, and the answer to that is `STOPPED`.
+  {
+    const ch = new Elm327Channel(() => {});
+    const hello = ch.command("ATI", 2000);
+    ch.feed("ATI\rELM327 v1.5\r>");
+    await hello;
+
+    const p = ch.command("1A 90", 4000);
+    ch.feed("1A 90\r");
+    let settled = false;
+    void p.then(() => {
+      settled = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    check(
+      "prompt: 450 ms of silence does not end a command once a prompt has been seen",
+      !settled,
+    );
+
+    ch.feed("5A 90 57 56 57 31 32 33 34 35 36 37 38 39 30 31 32 33 34\r>");
+    const lines = await p;
+    check(
+      "prompt: the same command ends on the prompt itself",
+      JSON.stringify(lines) ===
+        JSON.stringify(["5A 90 57 56 57 31 32 33 34 35 36 37 38 39 30 31 32 33 34"]),
+      JSON.stringify(lines),
+    );
+    const timing = ch.lastTiming();
+    check(
+      "prompt: the timing says which of the two ended it",
+      timing?.viaPrompt === true && (timing?.doneMs ?? 0) >= 450,
+      JSON.stringify(timing),
+    );
+  }
+
+  // 23. `STOPPED` is neither an answer from the car nor a refusal by it: it is
+  //     the adapter saying a character arrived while it was busy, which means
+  //     the request never left the adapter. Reporting it as the car declining
+  //     the service is the expensive reading, and not asking again is the
+  //     other half of the same mistake.
+  {
+    const detail = emptyDetail(["STOPPED"], {});
+    check(
+      "reply: STOPPED is not read as the car refusing the service",
+      detail.detail.includes("never reached the ECU"),
+      detail.detail,
+    );
+    check("reply: STOPPED is worth asking again", isNonAnswer(["STOPPED"], {}));
+    check("reply: NO DATA still is not", !isNonAnswer(["NO DATA"], {}));
   }
 
   if (failures.length > 0) {

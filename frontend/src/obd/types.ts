@@ -127,6 +127,15 @@ export type Coverage = {
    * them: a flat transcript of six reads is six answers with no questions.
    */
   raw?: string[];
+  /**
+   * How long this request took and what ended it — see `describeTiming`.
+   *
+   * Separate from {@link Coverage.raw} on purpose: `raw` is what the adapter
+   * said, and a pass where the adapter says nothing at all is a diagnosis of
+   * its own (`adapterMute` reads it). Folding a line of the app's own timing
+   * into that list would make a silent adapter look like a talking one.
+   */
+  timing?: string;
 };
 
 /** One module's answer to PID 01. */

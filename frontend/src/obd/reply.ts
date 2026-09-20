@@ -55,12 +55,20 @@ export function adapterRefusal(lines: string[]): string | null {
   return null;
 }
 
+/** The adapter's own word for "a character arrived while I was busy".
+ *  It is not an answer from the car and not a fault of the car's: the request
+ *  never reached the ECU, because the app wrote it while the adapter was still
+ *  working on the one before. See `PROMPT_SETTLE_MS` in `at.ts`. */
+const INTERRUPTED = "stopped";
+
 /** Why a reply carried no value. The first three are answers — somebody
- *  spoke; the last is the absence of one. */
+ *  spoke; `interrupted` is the adapter saying our own write cut in; the last
+ *  is the absence of an answer. */
 type EmptyReason =
   | { kind: "no-data" }
   | { kind: "negative"; unsupported: boolean; text: string }
   | { kind: "refusal"; text: string }
+  | { kind: "interrupted"; text: string }
   | { kind: "silence"; quoted: string };
 
 /**
@@ -80,7 +88,11 @@ function emptyReason(lines: string[], opts: ParseOptions): EmptyReason {
     return { kind: "negative", unsupported: UNSUPPORTED_NRC.has(refusal.nrc), text: refusal.text };
   }
   const refusal = adapterRefusal(lines);
-  if (refusal) return { kind: "refusal", text: refusal };
+  if (refusal) {
+    return refusal.trim().toLowerCase() === INTERRUPTED
+      ? { kind: "interrupted", text: refusal }
+      : { kind: "refusal", text: refusal };
+  }
   return { kind: "silence", quoted: quoteLines(lines) };
 }
 
@@ -105,6 +117,15 @@ export function emptyDetail(
       };
     case "refusal":
       return { status: "error", detail: `the adapter answered ${reason.text}` };
+    case "interrupted":
+      // Said plainly, because the alternative reading of this row is wrong in
+      // a way that costs a trip: `1A 90 → STOPPED` on the evidence screen reads
+      // as the car refusing the one service the VIN comes from, and the car
+      // never saw the request.
+      return {
+        status: "error",
+        detail: `the adapter was interrupted mid-command (${reason.text}) — this request never reached the ECU`,
+      };
     default:
       // Something did come back and nothing recognised it. Calling that "no
       // readable reply" is the most expensive lie this file could tell: it
@@ -122,14 +143,21 @@ export function emptyDetail(
 }
 
 /**
- * True when nobody answered: silence, or bytes in a shape nothing recognised.
+ * True when nobody answered: silence, bytes in a shape nothing recognised, or
+ * the adapter saying its own work was cut into.
  *
- * This is the one empty outcome a second ask can change. `NO DATA` is the ECU
- * speaking and `UNABLE TO CONNECT` is the adapter speaking — both are facts
- * about the car, and repeating the question only makes the wait longer. An
- * unanswered question is not a fact; it is what one bad moment looks like, and
- * it is the only thing worth spending a second command on.
+ * These are the empty outcomes a second ask can change. `NO DATA` is the ECU
+ * speaking and `UNABLE TO CONNECT` is the adapter speaking about the bus —
+ * both are facts about the car, and repeating the question only makes the wait
+ * longer. An unanswered question is not a fact; it is what one bad moment
+ * looks like, and it is the only thing worth spending a second command on.
+ *
+ * `STOPPED` belongs with the unanswered ones even though it is the adapter
+ * talking, and for the strongest reason of the three: the request never left
+ * the adapter. Retrying it is not asking the car the same thing twice, it is
+ * asking it once.
  */
 export function isNonAnswer(lines: string[], opts: ParseOptions = {}): boolean {
-  return emptyReason(lines, opts).kind === "silence";
+  const kind = emptyReason(lines, opts).kind;
+  return kind === "silence" || kind === "interrupted";
 }

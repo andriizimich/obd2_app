@@ -13,6 +13,30 @@ const DEFAULT_TIMEOUT_MS = 4000;
 const SETTLE_MS = 300;
 
 /**
+ * The same window, for an adapter that has shown it prints prompts.
+ *
+ * The gap above is measured against an adapter that says nothing at the end of
+ * a reply. One that prints `>` says something, and the gap is then a guess made
+ * *against* better evidence: the adapter keeps listening to the bus after its
+ * last data line — that is what `ATST` (400 ms here, plus adaptive timing) buys
+ * — and only prints the prompt once that window has closed. A 300 ms silence
+ * therefore ends the command while the adapter is still working on it, and the
+ * next write lands inside a command in flight: the adapter abandons what it was
+ * doing and answers `STOPPED`, which is its own word for "a character arrived
+ * while I was busy" and not an answer from the car at all.
+ *
+ * Measured on the car this was written for: `0902` refused twice, the adapter
+ * went quiet, the app wrote `1A 90` 300 ms later, and the reply to that was
+ * `STOPPED` — on the one read the VIN comes from.
+ *
+ * So where a prompt is expected the wait is longer than any response window the
+ * adapter can still be inside, and the prompt itself ends the command the
+ * moment it arrives — the longer wait is only ever paid when a prompt that was
+ * coming got lost, never in the ordinary case.
+ */
+const PROMPT_SETTLE_MS = 1000;
+
+/**
  * How long an abandoned command is given to finish talking before the next
  * one may be sent.
  *
@@ -94,7 +118,43 @@ type Pending = {
   /** Null until the adapter has started answering. */
   settle: ReturnType<typeof setTimeout> | null;
   timeout: ReturnType<typeof setTimeout>;
+  /** When the command went out on the wire. */
+  wroteAt: number;
+  /** When the adapter's first line of this answer arrived, if it did. */
+  answeredAt: number | null;
 };
+
+/**
+ * How long a command took, and what ended it.
+ *
+ * The channel can see the wire and the app cannot, and the one fact that
+ * separates "the adapter was still busy when we wrote" from "the car took its
+ * time" is a duration. `viaPrompt` is the half that says whether the adapter
+ * ever declared itself finished: a command resolved on silence, on an adapter
+ * that prints prompts, is one that ended while the adapter was still listening.
+ */
+export type CommandTiming = {
+  command: string;
+  /** Write → first line of the answer, or null when nothing came back. */
+  answeredMs: number | null;
+  /** Write → the command being resolved (prompt, silence, or timeout). */
+  doneMs: number;
+  viaPrompt: boolean;
+  timedOut: boolean;
+};
+
+/** One line for the evidence screen. Null when no command has finished yet. */
+export function describeTiming(timing: CommandTiming | null): string | null {
+  if (!timing) return null;
+  const answered =
+    timing.answeredMs === null ? "no answer" : `first line +${timing.answeredMs} ms`;
+  const ended = timing.timedOut
+    ? "gave up, no prompt"
+    : timing.viaPrompt
+      ? "prompt"
+      : "silence, no prompt seen";
+  return `${answered}, done +${timing.doneMs} ms (${ended})`;
+}
 
 /**
  * One ELM327 channel over a byte stream. Feed decoded UTF-8 chunks into
@@ -106,7 +166,10 @@ type Pending = {
  *    the echo is stripped;
  *  - a ">" line is the ELM327 prompt and ends multi-line replies;
  *  - an answer that stops mid-stream (no prompt, some clones print none)
- *    resolves after SETTLE_MS of silence — but only once it has started;
+ *    resolves after SETTLE_MS of silence — but only once it has started, and
+ *    only while the adapter has never printed a prompt; one that prints them
+ *    gets PROMPT_SETTLE_MS instead, because on that adapter a short silence
+ *    means the command ended while the adapter was still listening;
  *  - a command that is never answered rejects after `timeoutMs`, and whatever
  *    the adapter says afterwards is drained rather than handed to the command
  *    that follows it.
@@ -123,6 +186,16 @@ export class Elm327Channel {
    *  last one to arrive stealing the others' resolver. */
   private flushWait: Promise<void> | null = null;
   private flushDone: (() => void) | null = null;
+  /**
+   * Whether this adapter has ever printed a prompt.
+   *
+   * Not a guess about the model: it is set by the adapter itself, on the first
+   * `>` it sends, and it never goes back — the alternative is a clone that
+   * prints none, and that adapter keeps the short silence window it needs.
+   */
+  private promptSeen = false;
+  /** Timing of the most recently finished command, for the evidence screen. */
+  private last: CommandTiming | null = null;
 
   constructor(private readonly send: (raw: string) => void | Promise<void>) {}
 
@@ -143,6 +216,14 @@ export class Elm327Channel {
       const timeout = setTimeout(() => {
         const pending = this.clearPending();
         if (!pending) return;
+        this.last = {
+          command: pending.command,
+          answeredMs:
+            pending.answeredAt === null ? null : pending.answeredAt - pending.wroteAt,
+          doneMs: Date.now() - pending.wroteAt,
+          viaPrompt: false,
+          timedOut: true,
+        };
         // A half-received line belongs to the command we just gave up on;
         // keeping it would glue its tail onto the next reply's first line.
         this.buffer = "";
@@ -160,7 +241,16 @@ export class Elm327Channel {
       // answer, i.e. every request over a non-CAN bus, and the first request
       // of an auto protocol search. Those resolved with zero lines, which the
       // callers can only read as "the adapter said nothing".
-      this.pending = { command: raw.trim(), resolve, reject, lines: [], settle: null, timeout };
+      this.pending = {
+        command: raw.trim(),
+        resolve,
+        reject,
+        lines: [],
+        settle: null,
+        timeout,
+        wroteAt: Date.now(),
+        answeredAt: null,
+      };
     });
     try {
       await this.send(raw);
@@ -274,15 +364,18 @@ export class Elm327Channel {
     }
     const pending = this.pending;
     if (!pending) return;
-    // ELM327 prompt — response complete.
+    // ELM327 prompt — response complete. The adapter has said it is finished,
+    // which is the only signal here that is not a guess about its timing.
     if (trimmed === ">") {
-      this.finish();
+      this.promptSeen = true;
+      this.finish(true);
       return;
     }
     const isEcho =
       pending.lines.length === 0 &&
       trimmed.toLowerCase() === pending.command.toLowerCase();
     if (isEcho) return;
+    if (pending.answeredAt === null) pending.answeredAt = Date.now();
     pending.lines.push(trimmed);
 
     if (isInterimLine(trimmed)) {
@@ -295,14 +388,29 @@ export class Elm327Channel {
 
     // The answer has started. Wait a bit longer: more lines may follow.
     if (pending.settle) clearTimeout(pending.settle);
-    pending.settle = setTimeout(() => this.finish(), SETTLE_MS);
+    pending.settle = setTimeout(
+      () => this.finish(false),
+      this.promptSeen ? PROMPT_SETTLE_MS : SETTLE_MS,
+    );
   }
 
-  private finish(): void {
-    if (!this.pending) return;
-    const { resolve, lines } = this.pending;
-    this.clearPending();
-    resolve(lines);
+  /** Timing of the most recently resolved command, or null before the first. */
+  lastTiming(): CommandTiming | null {
+    return this.last;
+  }
+
+  private finish(viaPrompt: boolean): void {
+    const pending = this.clearPending();
+    if (!pending) return;
+    this.last = {
+      command: pending.command,
+      answeredMs:
+        pending.answeredAt === null ? null : pending.answeredAt - pending.wroteAt,
+      doneMs: Date.now() - pending.wroteAt,
+      viaPrompt,
+      timedOut: false,
+    };
+    pending.resolve(pending.lines);
   }
 
   /** Drop the in-flight slot and hand it back, so a caller that means to

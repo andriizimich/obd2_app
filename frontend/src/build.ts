@@ -12,4 +12,4 @@
  * Bump this by hand in the same change that produces a build worth testing;
  * a stamp that lies is worse than no stamp at all.
  */
-export const BUILD_STAMP = "2026-09-17.7";
+export const BUILD_STAMP = "2026-09-20.1";

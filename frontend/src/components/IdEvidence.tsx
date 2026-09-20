@@ -84,6 +84,15 @@ export default function IdEvidence({ evidence }: { evidence: IdentificationEvide
               {line}
             </Text>
           ))}
+          {/* What the request cost in time, and what ended it. A read the
+              adapter cut short (`STOPPED`) and a read the car never answered
+              leave the same-shaped hole; only the duration tells them apart,
+              and the screen is the one place a driver can see it. */}
+          {read.timing ? (
+            <Text style={styles.readTiming} testID={`read-timing-${read.request}`}>
+              {read.timing}
+            </Text>
+          ) : null}
         </View>
       ))}
 
@@ -172,6 +181,17 @@ const styles = StyleSheet.create({
   // characters past the fold are exactly the ones the reader came for.
   readRaw: {
     color: colors.onSurfaceTertiary,
+    fontFamily: Platform.select({ ios: "Menlo", default: "monospace" }),
+    fontSize: type.sm,
+    lineHeight: 16,
+    marginLeft: 58,
+  },
+  // Dimmer than the bytes above it: the timing is the app's own measurement,
+  // and it must not be mistaken for something the adapter said. Dimmer by
+  // colour, not by size — the type scale has no step below `sm`, and a size
+  // invented here would be the only one in the app.
+  readTiming: {
+    color: colors.borderStrong,
     fontFamily: Platform.select({ ios: "Menlo", default: "monospace" }),
     fontSize: type.sm,
     lineHeight: 16,

@@ -12,9 +12,10 @@
 // messages it is not the standard's "number of data items" either: a KWP2000
 // ECU numbering its own messages rewrites it in every frame, and a parser
 // that runs on past the first anchor reads those counters back as text. See
-// {@link mode49Payload}.
+// {@link mode49Fields}.
 
 import type { Elm327Channel } from "@/src/obd/at";
+import { describeTiming } from "@/src/obd/at";
 import { readLineFrame, refusalAt } from "@/src/obd/frames";
 import { parseOdometer, parseStatus } from "@/src/obd/mode01";
 import { describeError, emptyDetail, isNonAnswer } from "@/src/obd/reply";
@@ -40,9 +41,14 @@ export const PROTOCOL_NAMES: Record<string, string> = {
 /** One CALID field, per J1979 PID 04: sixteen bytes, null-padded. */
 const CALID_FIELD = 16;
 
+/** The measured car puts four data bytes behind every counter. */
+const SLOT_BYTES = 4;
+
+/** …and numbers them, four slots to a field. */
+const SLOTS_PER_FIELD = CALID_FIELD / SLOT_BYTES;
+
 /**
- * Every data byte a `49 <pid>` reply carries, in the order the adapter
- * printed it.
+ * The `49 <pid>` reply split into fields, in the order the ECU meant them.
  *
  * The byte behind the anchor is a counter, and it is dropped whatever the
  * car means by it: the standard's "number of data items", written once in
@@ -70,24 +76,102 @@ const CALID_FIELD = 16;
  * anchor, which is what keeps a reply that names the PID only once (a CAN
  * multi-frame answer) from losing its tail.
  *
+ * **The counter is a slot number, and a slot the current field already holds
+ * ends that field.** Concatenating the groups and cutting every sixteen bytes
+ * is not the same thing, and the difference is not hypothetical: the same car
+ * answering `0904` twice in one session sent the counters `01 02 03 04 05 06
+ * 01 07 08 02 03 04 05 06 07 08` — a second round of fields started while
+ * the first was still being filled, because the ECU numbers up to eight
+ * (two fields of four slots) and then starts again. Read as one run of 64
+ * bytes, that shifts every field after the first by one slot: the measured
+ * reply came back as `7539073, 75583630000, 07811896, 000007811476`, where
+ * the car's own answer is `7539073, 7558363, 000007811896, 000007811476`.
+ * Half of those strings are truncated and the other half have the tail of a
+ * neighbouring field glued to their front, and nothing about them looks
+ * malformed enough to notice on a screen.
+ *
+ * So a chunk is placed by its slot — slot 1..4 in the first field of the
+ * round, 5..8 in the second, four bytes each — and a slot arriving twice
+ * closes the round and opens the next one. Four slots fill a field, so this
+ * uses the car's own numbering as the boundary and never has to guess a
+ * stride.
+ *
+ * The other shape stays as it was. A reply that names the `49 <pid>` anchor
+ * once and then keeps sending — a CAN multi-frame answer, whose continuation
+ * frames carry no anchor at all — accumulates bytes in one field, and the
+ * sixteen-byte cut happens later in {@link parseCalid}, exactly as before.
+ * What tells the two apart is the bytes themselves: a chunk with more than
+ * the four bytes a slot carries is a run, not a slot, and the field it lands
+ * in is closed to further slots once it has taken one.
+ *
  * Lines are walked one at a time so the framing comes off first
  * ({@link readLineFrame}): with headers on, neither the legacy header nor the
  * trailing checksum is data.
  */
-function mode49Payload(lines: string[], pid: number): number[] {
-  const out: number[] = [];
-  let run: number[] | null = null;
+function mode49Fields(lines: string[], pid: number): number[][] {
+  type Field = { bytes: number[]; slots: Set<number>; run: boolean };
+  const fields: number[][] = [];
+  // The round being filled, by field position: slots 1-4 land in `round[0]`,
+  // 5-8 in `round[1]`. A slot already in the field it belongs to means the
+  // ECU has moved on to the next round, and the round is closed then rather
+  // than at the end, so its fields keep the order the car numbered them in.
+  let round: Field[] = [];
+  const openField = (index: number): Field => {
+    const field = round[index] ?? { bytes: [], slots: new Set<number>(), run: false };
+    round[index] = field;
+    return field;
+  };
+  const closeRound = () => {
+    // `round` is indexed by field position, so a round whose second field was
+    // the only one the ECU filled has a hole where the first would be.
+    for (const field of round) if (field) fields.push(field.bytes);
+    round = [];
+  };
+
+  let started = false;
+  // Set once the reply shows it is a stream rather than a set of numbered
+  // slots: a chunk longer than a slot, or bytes arriving with no anchor of
+  // their own. From then on the counters are not positions, nothing is
+  // padded to a slot, and every byte lands in one field in the order it
+  // arrived — which is the concatenation this used to be.
+  let stream = false;
   for (const line of lines) {
     const frame = readLineFrame(line);
     if (!frame) continue;
     const bytes = frame.payload;
     for (let i = 0; i < bytes.length; i++) {
       if (bytes[i] === 0x49 && bytes[i + 1] === pid) {
-        if (run) out.push(...run);
-        run = [];
-        // Skipped here and by the loop's own step: the service byte, the PID,
-        // and the counter behind them.
-        i += 2;
+        started = true;
+        const counter = bytes[i + 2];
+        const rest = bytes.slice(i + 3);
+        // Skipped, here and by the loop's own step: the service byte, the
+        // PID, and the counter behind them — and then whatever this chunk
+        // carried, which the branches below place themselves.
+        i = bytes.length;
+        if (counter === undefined || rest.length === 0) continue;
+        if (rest.length > SLOT_BYTES) stream = true;
+        if (stream) {
+          const field = openField(Math.max(0, round.length - 1));
+          field.bytes.push(...rest);
+          field.run = true;
+          continue;
+        }
+        const index = Math.floor((counter - 1) / SLOTS_PER_FIELD);
+        const held = round[index];
+        // A field takes its slots in ascending order, and either way out of
+        // that order means the ECU has started the next field: a slot the
+        // field already holds, or one below the highest it holds — the
+        // measured car sent `… 05 06` then `07 08` and then `05 06 07 08`
+        // again, and only the second reading puts `1476` in the field that
+        // `0000` and `0781` opened.
+        if (held && (held.run || held.slots.has(counter) || counter < Math.max(...held.slots))) {
+          closeRound();
+        }
+        const field = round[index] ?? openField(index);
+        const at = ((counter - 1) % SLOTS_PER_FIELD) * SLOT_BYTES;
+        while (field.bytes.length < at) field.bytes.push(0);
+        field.bytes.splice(at, SLOT_BYTES, ...rest.slice(0, SLOT_BYTES));
+        field.slots.add(counter);
         continue;
       }
       // A refusal is a status, not data, and it can sit between two messages
@@ -99,11 +183,23 @@ function mode49Payload(lines: string[], pid: number): number[] {
         i += 2;
         continue;
       }
-      if (run) run.push(bytes[i]);
+      // Bytes with no anchor of their own — the continuation frames of a
+      // reply that named the PID once. They go on the end of the field being
+      // filled, which is where concatenation would have put them; bytes
+      // *before* the first anchor belong to something else (a negative
+      // response, a stray PCI byte, another module's frame) and are dropped.
+      if (started) {
+        stream = true;
+        const field = openField(Math.max(0, round.length - 1));
+        field.bytes.push(bytes[i]);
+        // A field that has taken unslotted bytes is a run, and nothing is
+        // padded into the middle of it afterwards.
+        field.run = true;
+      }
     }
   }
-  if (run) out.push(...run);
-  return out;
+  closeRound();
+  return fields;
 }
 
 /** Printable ASCII from a byte array (drops padding/null bytes). */
@@ -665,18 +761,19 @@ export async function sweepIdentificationBlock(
 
 /** Calibration ID (09 04): one or more ASCII CALIDs in sixteen-byte fields.
  *
- *  The fields are cut on a fixed sixteen-byte stride rather than on the
- *  reply's own count, which is not a count on every car (see
- *  {@link mode49Payload}). The stride is what the spec fixes, and a field
- *  whose tail is padding decodes to the same string either way — the real
- *  `0904` above is one field of `37 35 33 39 30 37 33 00 …`, which reads as
- *  `7539073` whichever byte told us where the field ended. */
+ *  One field per field the ECU sent (see {@link mode49Fields}), and within a
+ *  field the sixteen-byte stride the spec fixes — the two agree wherever the
+ *  car numbers its slots, and the stride is what a reply that never numbered
+ *  them still needs. A field whose tail is padding decodes to the same string
+ *  either way: the real `0904` above is one field of `37 35 33 39 30 37 33 00
+ *  …`, which reads as `7539073` whichever byte told us where it ended. */
 export function parseCalid(lines: string[]): string[] {
-  const data = mode49Payload(lines, 0x04);
   const ids: string[] = [];
-  for (let i = 0; i < data.length; i += CALID_FIELD) {
-    const id = ascii(data.slice(i, i + CALID_FIELD)).trim();
-    if (id) ids.push(id);
+  for (const field of mode49Fields(lines, 0x04)) {
+    for (let i = 0; i < field.length; i += CALID_FIELD) {
+      const id = ascii(field.slice(i, i + CALID_FIELD)).trim();
+      if (id) ids.push(id);
+    }
   }
   return ids;
 }
@@ -688,7 +785,11 @@ export async function readCalid(channel: Elm327Channel): Promise<string[]> {
 /** ECU name (09 0A): one ASCII string of up to 20 characters, null-padded,
  *  behind the counter byte every `49 <pid>` reply opens with. */
 export function parseEcuName(lines: string[]): string | null {
-  return ascii(mode49Payload(lines, 0x0a)).trim() || null;
+  // Every field joined: the name is one string either way, and a slot the
+  // car left empty is padding, which `ascii` drops.
+  const data: number[] = [];
+  for (const field of mode49Fields(lines, 0x0a)) data.push(...field);
+  return ascii(data).trim() || null;
 }
 
 export async function readEcuName(
@@ -829,8 +930,15 @@ async function readRecorded<T>(
     result = await attempt();
   }
 
+  // What the request cost, next to what it answered. The evidence screen is
+  // read when a read failed, and the two ways a read fails on a real bus —
+  // the car did not answer, and the adapter was still busy with the read
+  // before — look identical in the lines. They are not identical in time.
+  const timing = describeTiming(elm.lastTiming());
+  const withTiming = timing ? { timing } : {};
+
   if (result.value !== null) {
-    reads.push({ request, label, status: "ok", raw: capRaw(result.lines) });
+    reads.push({ request, label, status: "ok", raw: capRaw(result.lines), ...withTiming });
     return result.value;
   }
   reads.push({
@@ -843,6 +951,7 @@ async function readRecorded<T>(
       ? { status: "error" as const, detail: result.failure }
       : emptyDetail(result.lines, {})),
     raw: capRaw(result.lines),
+    ...withTiming,
   });
   return null;
 }
