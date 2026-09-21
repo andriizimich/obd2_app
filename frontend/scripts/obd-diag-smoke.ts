@@ -17,7 +17,6 @@ import {
 } from "../src/obd/dtc";
 import { DTC_DICTIONARY } from "../src/obd/dtc-dictionary";
 import { reportText } from "../src/api/telegram";
-import { BUILD_STAMP } from "../src/build";
 import {
   detectProtocolCode,
   parseKwpVin,
@@ -1145,6 +1144,76 @@ async function main() {
   }
 
   {
+    // The measured car refuses `0902` on the functional header — `7F 09 12`,
+    // on every run — and a broadcast refusal is one answer standing in for
+    // every module on the bus: it says the module that answered does not keep
+    // the VIN there, and says nothing about the module that never got to
+    // speak. Asked one module at a time, the refusal can no longer hide one.
+    //
+    // Which is the whole reason `0902` is in `MODULE_VIN_DIALECTS` beside
+    // `1A 90`, and why this block exists: that dialect had no test, and the
+    // read it adds is the one dialect this car has ever answered with VIN
+    // characters.
+    const MODULE_VIN = "WVWZZZ1JZXW000001";
+    const toHex = (b: number) => b.toString(16).toUpperCase().padStart(2, "0");
+    // The header in force at the moment each command went out, which is the
+    // only thing that distinguishes the broadcast ask from the addressed one.
+    const addressed: string[] = [];
+    const sent: string[] = [];
+    let header = "81 F1 F1";
+    const ch = new Elm327Channel((raw) => {
+      const cmd = raw.replace(/\r$/, "").trim().toUpperCase();
+      sent.push(cmd);
+      addressed.push(`${header}|${cmd}`);
+      const set = /^AT SH (.*)$/.exec(cmd);
+      if (set) {
+        header = set[1];
+        setTimeout(() => feedReply(ch, "OK\r>"), 0);
+        return;
+      }
+      let reply = "NO DATA\r>";
+      if (cmd === "ATDPN") reply = "A5\r>";
+      // Refused wherever the whole bus hears it, answered by one module.
+      else if (cmd === "1A 90") reply = "7F 1A 12\r>";
+      else if (cmd === "0902") {
+        reply =
+          header === "80 12 F1"
+            ? `49 02 01 ${[...MODULE_VIN].map((c) => toHex(c.charCodeAt(0))).join(" ")}\r>`
+            : "7F 09 12\r>";
+      }
+      setTimeout(() => feedReply(ch, reply), 0);
+    });
+
+    const info = await readVehicleInfoOver(ch, undefined, {
+      moduleAddresses: [0x12, 0x18],
+    });
+    // On the module's own header, not merely sent somewhere: the functional
+    // ask happens on every car and proves nothing about this path.
+    check(
+      "modules: `0902` is asked on the module's own header, not only broadcast",
+      addressed.includes("80 12 F1|0902"),
+      addressed.join(","),
+    );
+    check(
+      "modules: a VIN the broadcast address refused is read from one module",
+      info.vin === MODULE_VIN && info.vinFrom === "0902 @0x12",
+      `${info.vin ?? "null"} from ${info.vinFrom ?? "null"}`,
+    );
+    // The second module is spared once the first has answered whole — the
+    // same economy the `1A 90` case above is held to.
+    check(
+      "modules: the second module is not asked for a VIN already in hand",
+      !addressed.includes("80 18 F1|0902"),
+      addressed.join(","),
+    );
+    check(
+      "modules: the adapter is left on the functional header a scan needs",
+      sent.lastIndexOf("AT SH 81 F1 F1") > sent.lastIndexOf("AT SH 80 12 F1"),
+      sent.join(","),
+    );
+  }
+
+  {
     // A CAN car, with modules the scan has named: the header above is ISO
     // 14230's three-byte one, and a CAN bus is not addressed that way. Asking
     // nothing is the answer — the `22 F1 90` dialect above already covers it.
@@ -1234,7 +1303,7 @@ async function main() {
     check(
       "connect: every read is recorded, once, in the order it was sent",
       info.reads?.map((r) => r.request).join(",") ===
-        "ATDPN,ATST 64,0902,22 F1 90,0904,090A,01A6",
+        "ATDPN,ATAL,ATST FF,0902,22 F1 90,0904,090A,01A6",
       JSON.stringify(info.reads?.map((r) => r.request)),
     );
   }
@@ -1249,15 +1318,16 @@ async function main() {
     const info = await readVehicleInfoOver(ch, 5);
     check(
       "connect: silence is recorded per read, not as one blank vehicle",
-      // Eight, not six: an adapter that never named the protocol leaves every
+      // Nine, not six: an adapter that never named the protocol leaves every
       // KWP2000 dialect eligible, and they are asked like everything else —
       // `0902`, `1A 90` and `21 81` where there used to be two. A silent bus
-      // is what that costs, and the bus is silent either way. The eighth line
-      // is the timing knob: a silent adapter does not answer `ATAT`/`ATST`
-      // either, and that line is an error like the rest — filing it under
-      // "the adapter does not implement ATST" would name a missing feature
-      // on a dongle whose only problem is that it is not talking.
-      info.reads?.length === 8 &&
+      // is what that costs, and the bus is silent either way. Two of the
+      // lines are the adapter's own settings, and both are errors like the
+      // rest: a silent adapter does not answer `ATAT`/`ATST` or `ATAL`
+      // either, and filing either under "the adapter does not implement it"
+      // would name a missing feature on a dongle whose only problem is that
+      // it is not talking.
+      info.reads?.length === 9 &&
         info.reads.every((r) => r.status === "error" && /timeout/i.test(r.detail ?? "")),
       JSON.stringify(info.reads),
     );
@@ -1756,53 +1826,40 @@ async function main() {
       coverageOf(report, "01A6")?.detail,
     );
 
-    // The report that goes to the chat: the lamp, the car, and one line per
-    // fault — which is what was asked for and what the bot did not do.
+    // The message that goes to the chat: when, which car, which codes. Every
+    // other fact this pass produced — the lamp, the VIN, the odometer, the
+    // protocol, a title for each code — is real and is on the results screen
+    // or in the report, and none of it is in the chat. The list is what the
+    // message is for, and it is the only thing in it.
     const text = reportText({ ...VW, make: "Hyundai", model: "Tucson" }, report);
-    const faultLines = text.split("\n").filter((l) => l.startsWith("• "));
+    const lines = text.split("\n");
     check(
-      "measured: the chat report names the car and the lamp",
-      text.includes("Hyundai Tucson") && text.includes("Check engine light: ON"),
-      text.split("\n").slice(0, 3).join(" | "),
+      "measured: the chat message is the date, the car and the codes",
+      lines.length === 4 &&
+        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(lines[0] ?? "") &&
+        lines[1] === "Hyundai Tucson · 2018" &&
+        lines[2] === "P0401" &&
+        lines[3] === "P1246",
+      lines.join(" | "),
     );
     check(
-      "measured: each fault is exactly one line",
-      faultLines.length === 2 &&
-        faultLines[0]?.includes("P0401") === true &&
-        faultLines[1]?.includes("P1246") === true,
-      faultLines.join(" ⏎ "),
+      "measured: a code line is the code and nothing else",
+      !text.includes("P1246 —") &&
+        !text.includes("not decoded") &&
+        !text.includes("ECU 12") &&
+        !text.includes("Check engine light") &&
+        !text.includes("178 464"),
+      lines.slice(2).join(" | "),
     );
+    // "No icons" is the one part of the format that a reader notices as a
+    // wall of shapes and a test notices not at all, so it is asserted rather
+    // than left to whoever writes the next line of this function.
+    const ICONS =
+      /[\u{1F000}-\u{1FAFF}\u{2190}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{2705}\u{26A0}]/u;
     check(
-      "measured: the unread odometer prints no mileage line",
-      !text.includes("Mileage"),
-      text.split("\n").slice(0, 4).join(" | "),
-    );
-    // P1246 is not in the bundled table, so its title is the category its own
-    // bytes name — "Fuel and air metering (injector circuit)" — which reads
-    // like a diagnosis on a line that has no room for the sentence the results
-    // screen prints underneath. P0401 is in the table and must stay unmarked,
-    // or the marker stops meaning anything.
-    check(
-      "measured: an undecoded code is marked, a decoded one is not",
-      faultLines[0]?.includes("not decoded") === false &&
-        faultLines[1]?.includes("not decoded") === true,
-      faultLines.join(" ⏎ "),
-    );
-    // The five characters that came off `1A 90` went out as `🔑 VIN: B3338` —
-    // a report stating a VIN the car never gave — while the dashboard printed
-    // the same five as "Partial VIN · 5 of 17 characters". Both are now the
-    // same claim in the same words.
-    const partial = reportText({ ...VW, vin: "B3338" }, report);
-    check(
-      "measured: a fragment is reported as a partial VIN, never as a VIN",
-      partial.includes("🔑 Partial VIN: B3338 (5 of 17 characters)") &&
-        !partial.includes("🔑 VIN: B3338"),
-      partial.split("\n").find((l) => l.includes("VIN")) ?? "no VIN line",
-    );
-    check(
-      "measured: a whole VIN is still reported as one",
-      text.includes("🔑 VIN: WVW1JZXWXJP000001") && !text.includes("Partial VIN"),
-      text.split("\n").find((l) => l.includes("VIN")) ?? "no VIN line",
+      "measured: the message carries no icons",
+      !ICONS.test(text),
+      `icons in: ${lines.filter((l) => ICONS.test(l)).join(" | ") || "none"}`,
     );
   }
 
@@ -1871,9 +1928,9 @@ async function main() {
     );
     check(
       "scan: the message still refuses to call an unread car healthy",
-      reportText(VW, report).includes("Nothing could be read from the ECU"),
-      reportText(VW, report).split("\n").find((l) => l.includes("read from the ECU")) ??
-        "no line",
+      reportText(VW, report).includes("Nothing could be read") &&
+        !reportText(VW, report).includes("No fault codes"),
+      reportText(VW, report).split("\n").slice(2).join(" | "),
     );
   }
 
@@ -1884,36 +1941,24 @@ async function main() {
   {
     const { ch } = tableChannel(HEALTHY);
     const report = await readDiagnosticsOver(ch, FAST);
-    const text = reportText(VW, report);
 
+    // The codes are one per line and each one appears once. The report holds
+    // the same code twice when the ECU has it both stored and pending — two
+    // facts, and the results screen says so — but the message carries no
+    // status, so two identical lines would read as a bug rather than as the
+    // distinction the report is drawing.
+    const duped: DiagnosticReport = {
+      ...report,
+      faults: [
+        ...report.faults,
+        { ...report.faults[1]!, status: "pending" as const },
+      ],
+    };
+    const dupedLines = reportText(VW, duped).split("\n").slice(2);
     check(
-      "telegram: a real pass carries the car, the odometer and the codes",
-      text.includes("Volkswagen") &&
-        text.includes("178 464 km") &&
-        text.includes("P0300") &&
-        text.includes("P0701"),
-      text.split("\n").slice(0, 4).join(" | "),
-    );
-    check(
-      "telegram: the lamp and the code counts are stated",
-      text.includes("Check engine light: ON") &&
-        text.includes("5 fault(s) — 3 stored · 1 pending · 1 permanent"),
-      text.split("\n").find((l) => l.includes("fault(s)")),
-    );
-    check(
-      "telegram: pending is told apart from stored",
-      text.includes("[pending · "),
-      text.split("\n").find((l) => l.includes("P0701")),
-    );
-    check(
-      "telegram: the message names the build that produced it",
-      text.includes(`build ${BUILD_STAMP}`),
-      text.split("\n").slice(-1)[0],
-    );
-    check(
-      "telegram: what was and was not read is spelled out",
-      text.includes("Read: 03 ✓"),
-      text.split("\n").find((l) => l.startsWith("Read:")),
+      "telegram: a code in two lists is one line in the message",
+      dupedLines.filter((l) => l === duped.faults[1]!.code).length === 1,
+      dupedLines.join(" | "),
     );
 
     // The case that matters most: an ECU that answered nothing must not be
@@ -1944,23 +1989,27 @@ async function main() {
       })),
     };
     const silentText = reportText(VW, silent);
+    const silentLines = silentText.split("\n");
     check(
       "telegram: nothing read is never sent as a clean bill of health",
       silentText.includes("Nothing could be read") &&
         !silentText.includes("No fault codes"),
-      silentText.split("\n")[4],
+      silentLines[2],
     );
     check(
-      "telegram: an all-failed pass says why each read failed, not just that it did",
+      "telegram: a pass that read nothing is still three lines",
+      silentLines.length === 3,
+      silentLines.join(" | "),
+    );
+    // The reasons are the whole message when there are no codes, and there is
+    // nowhere else left to put them: the results screen shows the driver what
+    // it can, and this line is what reaches anyone else. Two of them, because
+    // one line is all a failed pass gets.
+    check(
+      "telegram: an all-failed pass says why the reads failed, not just that they did",
       silentText.includes("UNABLE TO CONNECT") &&
-        silentText.includes('timeout waiting for "07"') &&
-        silentText.includes("NO DATA"),
-      silentText.split("\n").filter((l) => l.trimStart().startsWith("•")).join(" | "),
-    );
-    check(
-      "telegram: an unread odometer prints no mileage line at all",
-      !silentText.includes("Mileage"),
-      silentText.split("\n").slice(1, 3).join(" | "),
+        silentText.includes('timeout waiting for "07"'),
+      silentLines[2],
     );
 
     // Connecting before the engine is running identifies nothing, and the
@@ -1968,48 +2017,38 @@ async function main() {
     const blankText = reportText(unidentifiedVehicle(null, null), silent);
     check(
       "telegram: an unidentified car is not printed as “Unknown”",
-      !blankText.includes("Unknown") && blankText.includes("Vehicle: not identified"),
-      blankText.split("\n").slice(0, 3).join(" | "),
-    );
-    check(
-      "telegram: an all-failed pass carries the adapter's own output",
-      silentText.includes("Adapter output:") && silentText.includes("| OK"),
-      silentText.split("\n").filter((l) => l.includes("| OK")).join(" | "),
-    );
-    // "The adapter sent nothing" and "the adapter sent bytes we could not
-    // parse" print the same coverage detail and mean opposite things, so the
-    // empty transcript has to be stated rather than shown as a blank block.
-    const muteText = reportText(VW, { ...silent, rawLines: [] });
-    check(
-      "telegram: an empty transcript is stated, not left blank",
-      muteText.includes("not a single data line came back"),
-      muteText.split("\n").find((l) => l.includes("Adapter output")),
-    );
-    check(
-      "telegram: an unread car is not blamed for the adapter's silence",
-      blankText.includes("no VIN was read") &&
-        !blankText.includes("the ECU returned no VIN"),
-      blankText.split("\n").find((l) => l.includes("Vehicle:")),
+      !blankText.includes("Unknown") &&
+        blankText.split("\n")[1] === "Vehicle not identified",
+      blankText.split("\n").slice(0, 2).join(" | "),
     );
 
-    // A healthy car that was actually read says so, and says how it knows.
+    // Everything the message used to carry and no longer does. Each of these
+    // is a real fact about the car and each one is on the results screen or in
+    // the report — the assertion is that the chat is not where they went.
+    check(
+      "telegram: no VIN, odometer, lamp or adapter transcript reaches the chat",
+      !silentText.includes("VIN") &&
+        !silentText.includes("Mileage") &&
+        !silentText.includes("OK") &&
+        !silentText.includes("Adapter output") &&
+        !silentText.includes("Read:"),
+      silentLines.join(" | "),
+    );
+
+    // A healthy car that was actually read says so, in one word.
     const clean = reportText(VW, { ...silent, coverage: report.coverage });
     check(
       "telegram: a healthy read car does say no codes",
-      clean.includes("No fault codes reported"),
-      clean.split("\n")[4],
-    );
-    check(
-      "telegram: a pass that read something keeps the short roll call",
-      !clean.includes("UNABLE TO CONNECT") &&
-        !clean.includes("NO DATA") &&
-        !clean.includes("Adapter output"),
-      clean.split("\n").find((l) => l.includes("Read:")),
+      clean.split("\n")[2] === "No fault codes",
+      clean.split("\n").slice(2).join(" | "),
     );
 
-    // Telegram caps at 4096 and rejects the whole message, so a long list has
-    // to be trimmed rather than refused.
-    const many = Array.from({ length: 25 }, (_, i) => ({
+    // Telegram caps at 4096 and rejects the whole message, so a list longer
+    // than the cap can carry is trimmed rather than refused. The cap here is
+    // well above any real car — a module reporting ninety codes is a module
+    // with a wiring fault — and it exists so that a report can never vanish
+    // without a trace.
+    const many = Array.from({ length: 90 }, (_, i) => ({
       code: `P${String(300 + i).padStart(4, "0")}`,
       group: "engine" as const,
       title: "Synthetic code for the budget check",
@@ -2018,27 +2057,25 @@ async function main() {
     }));
     const longText = reportText(VW, { ...report, faults: many });
     check(
-      "telegram: 25 codes still fit the budget",
-      longText.length <= 3500,
-      `${longText.length} chars`,
-    );
-    check(
-      "telegram: the trimmed list says how many codes it dropped",
-      longText.includes("P0300") &&
-        longText.includes("and 13 more") &&
-        longText.includes("Read: 03 ✓"),
-      longText.split("\n").slice(-4).join(" | "),
+      "telegram: a long list is trimmed, not refused",
+      // The date, the car, eighty codes, the count of what was dropped.
+      longText.split("\n").length === 83 && longText.endsWith("+10 more"),
+      `${longText.split("\n").length} lines, ${longText.length} chars`,
     );
 
-    // A title is data off a car, and the body is parsed as HTML.
+    // The code is the only thing off the fault that is printed, so nothing a
+    // title contains can reach the message — markup included, which is also
+    // why `parse_mode` is not set on the send.
     const hostile = reportText(VW, {
       ...report,
-      faults: [{ ...many[0], title: "a <b>bold</b> lie & more" }],
+      faults: [{ ...many[0]!, title: "a <b>bold</b> lie & more" }],
     });
     check(
-      "telegram: code titles are HTML-escaped",
-      hostile.includes("&lt;b&gt;") && !hostile.includes("<b>"),
-      hostile.split("\n").find((l) => l.includes("bold")),
+      "telegram: a code's title never reaches the message",
+      hostile.split("\n")[2] === many[0]!.code &&
+        !hostile.includes("bold") &&
+        !hostile.includes("&"),
+      hostile.split("\n").slice(2).join(" | "),
     );
   }
 
@@ -2135,18 +2172,96 @@ async function main() {
 
     // A reset the adapter does not clear is the end of it: the line is held by
     // something `ATZ` cannot reach, and a retry pass would only spend another
-    // minute saying so.
+    // minute saying so. What runs before it is the cheap rung — `AT PC`, one
+    // command, and the one the datasheet names for a bus that has been busy —
+    // so the line is held twice: once for the close, once for the reset. The
+    // count stops there. What the reset cannot clear, nothing after it will.
     {
       const c = mutableChannel({}, "BUS BUSY\r>");
       const info = await readVehicleInfoOver(c.ch, undefined, {
         sweepIdentification: true,
       });
       const row = info.reads?.find((r) => r.request === "ATZ");
+      const resetAt = c.sent.indexOf("ATZ");
+      const afterReset = c.sent
+        .slice(resetAt + 1)
+        .filter((cmd) => cmd === "0902").length;
       const passes = c.sent.filter((cmd) => cmd === "0902").length;
       check(
         "reset: a reset that did not clear the bus ends the recovery",
-        row?.status === "error" && passes === 1,
-        `${row?.status ?? "no row"} (${row?.detail ?? ""}); 0902 asked ${passes}×`,
+        row?.status === "error" && passes === 2 && afterReset === 0,
+        `${row?.status ?? "no row"} (${row?.detail ?? ""}); 0902 asked ${passes}×, ${afterReset}× after the reset`,
+      );
+    }
+
+    // The cheap rung on its own, and the whole reason it went in front of the
+    // reset: a line that was held when the protocol closed, and is free after
+    // it. The adapter keeps every setting the pass made — echo, `ATAL`, the
+    // reply ceiling — where the reset would have thrown all three away, and
+    // the car is read on the same pass that found it silent.
+    {
+      let c: ReturnType<typeof mutableChannel>;
+      c = mutableChannel({}, "BUS BUSY\r>", (cmd) => {
+        if (cmd === "ATPC") c.set({ ...RECOVERED, ATPC: "OK\r>" }, "NO DATA\r>");
+      });
+      const info = await readVehicleInfoOver(c.ch, undefined, {
+        sweepIdentification: true,
+      });
+      const row = info.reads?.find((r) => r.request === "ATPC");
+      check(
+        "reset: a held bus is closed before the adapter is reset",
+        row?.status === "ok" &&
+          !c.sent.includes("ATZ") &&
+          info.vin === VW_VIN,
+        `${row?.status ?? "no row"}; ${info.vin ?? "null"}; ATZ ${c.sent.includes("ATZ") ? "spent" : "not spent"}`,
+      );
+    }
+
+    // A clone that does not implement `AT PC` says `?`, and the ladder below
+    // it is still owed: the refusal is one command's worth of evidence about
+    // the adapter, not an answer about the bus.
+    {
+      const c = mutableChannel({ ATPC: "?\r>" }, "BUS BUSY\r>");
+      const info = await readVehicleInfoOver(c.ch, undefined, {
+        sweepIdentification: true,
+      });
+      const row = info.reads?.find((r) => r.request === "ATPC");
+      check(
+        "reset: a refused `AT PC` does not cost the reset its turn",
+        row?.status === "error" &&
+          c.sent.includes("ATZ") &&
+          (row?.detail ?? "").includes("does not implement"),
+        `${row?.status ?? "no row"} (${row?.detail ?? ""})`,
+      );
+    }
+
+    // The pin, and what it is for: the reset drops the protocol with
+    // everything else, and the auto search it leaves behind cannot finish on a
+    // bus that is still bad. The adapter named the protocol before the reset,
+    // so it goes back on before the retry — and comes back off at the end,
+    // because this adapter is about to be plugged into a different car.
+    {
+      // The adapter answers its own commands and nothing else: `ATDPN` names
+      // the protocol, `ATZ` comes back with its own name, and every request
+      // that needs the bus is refused.
+      const c = mutableChannel(
+        { ATDPN: "A5\r>", ATZ: "ELM327 v1.5\r>", ATE0: "OK\r>" },
+        "BUS BUSY\r>",
+      );
+      const info = await readVehicleInfoOver(c.ch);
+      const row = info.reads?.find((r) => r.request === "ATZ");
+      const pinnedAt = c.sent.indexOf("ATSP5");
+      check(
+        "reset: the protocol the adapter named is put back for the retry",
+        row?.status === "ok" &&
+          pinnedAt > c.sent.indexOf("ATZ") &&
+          pinnedAt < c.sent.lastIndexOf("0902"),
+        `${row?.status ?? "no row"} (${row?.detail ?? ""}); ${c.sent.join(",")}`,
+      );
+      check(
+        "reset: a pinned protocol is handed back to the search before the pass ends",
+        c.sent.indexOf("ATSP0") > pinnedAt,
+        c.sent.join(","),
       );
     }
 

@@ -1,0 +1,1719 @@
+{
+  "version": 1,
+  "scope": "Romanian market — makes and models sold or commonly driven in Romania, newest generations included",
+  "caveat": "Curated from public model-year knowledge, not from an authoritative register. Year ranges are production spans for the Romanian/European market and may be off by a year at a boundary.",
+  "makes": [
+    { "id": "dacia", "name": "Dacia", "models": [
+      { "id": "logan", "name": "Logan", "generations": [
+        { "id": "logan-1", "name": "Logan I", "from": 2004, "to": 2012 },
+        { "id": "logan-2", "name": "Logan II", "from": 2012, "to": 2020 },
+        { "id": "logan-3", "name": "Logan III", "from": 2020, "to": null }
+      ] },
+      { "id": "sandero", "name": "Sandero", "generations": [
+        { "id": "sandero-1", "name": "Sandero I", "from": 2008, "to": 2012 },
+        { "id": "sandero-2", "name": "Sandero II", "from": 2012, "to": 2020 },
+        { "id": "sandero-3", "name": "Sandero III", "from": 2020, "to": null }
+      ] },
+      { "id": "duster", "name": "Duster", "generations": [
+        { "id": "duster-1", "name": "Duster I", "from": 2010, "to": 2017 },
+        { "id": "duster-2", "name": "Duster II", "from": 2017, "to": 2024 },
+        { "id": "duster-3", "name": "Duster III", "from": 2024, "to": null }
+      ] },
+      { "id": "spring", "name": "Spring", "generations": [
+        { "id": "spring-1", "name": "Spring", "from": 2021, "to": null }
+      ] },
+      { "id": "jogger", "name": "Jogger", "generations": [
+        { "id": "jogger-1", "name": "Jogger", "from": 2021, "to": null }
+      ] },
+      { "id": "lodgy", "name": "Lodgy", "generations": [
+        { "id": "lodgy-1", "name": "Lodgy", "from": 2012, "to": 2022 }
+      ] },
+      { "id": "dokker", "name": "Dokker", "generations": [
+        { "id": "dokker-1", "name": "Dokker", "from": 2012, "to": 2021 }
+      ] },
+      { "id": "dokker-van", "name": "Dokker Van", "generations": [
+        { "id": "dokker-van-1", "name": "Dokker Van", "from": 2012, "to": 2021 }
+      ] },
+      { "id": "solenza", "name": "Solenza", "generations": [
+        { "id": "solenza-1", "name": "Solenza", "from": 2003, "to": 2005 }
+      ] },
+      { "id": "supernova", "name": "SuperNova", "generations": [
+        { "id": "supernova-1", "name": "SuperNova", "from": 1999, "to": 2003 }
+      ] },
+      { "id": "nova", "name": "Nova", "generations": [
+        { "id": "nova-1", "name": "Nova", "from": 1995, "to": 2000 }
+      ] },
+      { "id": "1310", "name": "1310", "generations": [
+        { "id": "1310-1", "name": "1300", "from": 1969, "to": 1979 },
+        { "id": "1310-2", "name": "1310", "from": 1979, "to": 2004 }
+      ] },
+      { "id": "pick-up", "name": "Pick-Up", "generations": [
+        { "id": "pick-up-1", "name": "Pick-Up", "from": 1975, "to": 2006 }
+      ] }
+    ] },
+    { "id": "renault", "name": "Renault", "models": [
+      { "id": "clio", "name": "Clio", "generations": [
+        { "id": "clio-1", "name": "Clio I", "from": 1990, "to": 1998 },
+        { "id": "clio-2", "name": "Clio II", "from": 1998, "to": 2012 },
+        { "id": "clio-3", "name": "Clio III", "from": 2005, "to": 2012 },
+        { "id": "clio-4", "name": "Clio IV", "from": 2012, "to": 2019 },
+        { "id": "clio-5", "name": "Clio V", "from": 2019, "to": null }
+      ] },
+      { "id": "megane", "name": "Megane", "generations": [
+        { "id": "megane-1", "name": "Megane I", "from": 1995, "to": 2002 },
+        { "id": "megane-2", "name": "Megane II", "from": 2002, "to": 2008 },
+        { "id": "megane-3", "name": "Megane III", "from": 2008, "to": 2016 },
+        { "id": "megane-4", "name": "Megane IV", "from": 2015, "to": 2022 },
+        { "id": "megane-5", "name": "Megane V", "from": 2022, "to": null }
+      ] },
+      { "id": "captur", "name": "Captur", "generations": [
+        { "id": "captur-1", "name": "Captur I", "from": 2013, "to": 2019 },
+        { "id": "captur-2", "name": "Captur II", "from": 2019, "to": null }
+      ] },
+      { "id": "kadjar", "name": "Kadjar", "generations": [
+        { "id": "kadjar-1", "name": "Kadjar", "from": 2015, "to": 2022 }
+      ] },
+      { "id": "austral", "name": "Austral", "generations": [
+        { "id": "austral-1", "name": "Austral", "from": 2022, "to": null }
+      ] },
+      { "id": "scenic", "name": "Scenic", "generations": [
+        { "id": "scenic-1", "name": "Scenic I", "from": 1996, "to": 2003 },
+        { "id": "scenic-2", "name": "Scenic II", "from": 2003, "to": 2009 },
+        { "id": "scenic-3", "name": "Scenic III", "from": 2009, "to": 2016 },
+        { "id": "scenic-4", "name": "Scenic IV", "from": 2016, "to": 2022 }
+      ] },
+      { "id": "espace", "name": "Espace", "generations": [
+        { "id": "espace-1", "name": "Espace I", "from": 1984, "to": 1991 },
+        { "id": "espace-2", "name": "Espace II", "from": 1991, "to": 1997 },
+        { "id": "espace-3", "name": "Espace III", "from": 1997, "to": 2002 },
+        { "id": "espace-4", "name": "Espace IV", "from": 2002, "to": 2014 },
+        { "id": "espace-5", "name": "Espace V", "from": 2015, "to": 2023 },
+        { "id": "espace-6", "name": "Espace VI", "from": 2023, "to": null }
+      ] },
+      { "id": "laguna", "name": "Laguna", "generations": [
+        { "id": "laguna-1", "name": "Laguna I", "from": 1994, "to": 2001 },
+        { "id": "laguna-2", "name": "Laguna II", "from": 2001, "to": 2007 },
+        { "id": "laguna-3", "name": "Laguna III", "from": 2007, "to": 2015 }
+      ] },
+      { "id": "twingo", "name": "Twingo", "generations": [
+        { "id": "twingo-1", "name": "Twingo I", "from": 1993, "to": 2007 },
+        { "id": "twingo-2", "name": "Twingo II", "from": 2007, "to": 2014 },
+        { "id": "twingo-3", "name": "Twingo III", "from": 2014, "to": 2021 }
+      ] },
+      { "id": "modus", "name": "Modus", "generations": [
+        { "id": "modus-1", "name": "Modus", "from": 2004, "to": 2012 }
+      ] },
+      { "id": "zoe", "name": "Zoe", "generations": [
+        { "id": "zoe-1", "name": "Zoe", "from": 2012, "to": 2024 }
+      ] },
+      { "id": "talisman", "name": "Talisman", "generations": [
+        { "id": "talisman-1", "name": "Talisman", "from": 2015, "to": 2022 }
+      ] },
+      { "id": "koleos", "name": "Koleos", "generations": [
+        { "id": "koleos-1", "name": "Koleos I", "from": 2007, "to": 2015 },
+        { "id": "koleos-2", "name": "Koleos II", "from": 2016, "to": 2023 }
+      ] },
+      { "id": "arkana", "name": "Arkana", "generations": [
+        { "id": "arkana-1", "name": "Arkana", "from": 2019, "to": null }
+      ] },
+      { "id": "fluence", "name": "Fluence", "generations": [
+        { "id": "fluence-1", "name": "Fluence", "from": 2009, "to": 2017 }
+      ] },
+      { "id": "19", "name": "19", "generations": [
+        { "id": "19-1", "name": "19", "from": 1988, "to": 1996 }
+      ] },
+      { "id": "kangoo", "name": "Kangoo", "generations": [
+        { "id": "kangoo-1", "name": "Kangoo I", "from": 1997, "to": 2007 },
+        { "id": "kangoo-2", "name": "Kangoo II", "from": 2007, "to": 2021 },
+        { "id": "kangoo-3", "name": "Kangoo III", "from": 2021, "to": null }
+      ] },
+      { "id": "trafic", "name": "Trafic", "generations": [
+        { "id": "trafic-1", "name": "Trafic I", "from": 1980, "to": 2001 },
+        { "id": "trafic-2", "name": "Trafic II", "from": 2001, "to": 2014 },
+        { "id": "trafic-3", "name": "Trafic III", "from": 2014, "to": null }
+      ] },
+      { "id": "master", "name": "Master", "generations": [
+        { "id": "master-1", "name": "Master I", "from": 1980, "to": 1997 },
+        { "id": "master-2", "name": "Master II", "from": 1997, "to": 2010 },
+        { "id": "master-3", "name": "Master III", "from": 2010, "to": null }
+      ] }
+    ] },
+    { "id": "volkswagen", "name": "Volkswagen", "models": [
+      { "id": "golf", "name": "Golf", "generations": [
+        { "id": "golf-1", "name": "Golf I", "from": 1974, "to": 1983 },
+        { "id": "golf-2", "name": "Golf II", "from": 1983, "to": 1992 },
+        { "id": "golf-3", "name": "Golf III", "from": 1991, "to": 1997 },
+        { "id": "golf-4", "name": "Golf IV", "from": 1997, "to": 2003 },
+        { "id": "golf-5", "name": "Golf V", "from": 2003, "to": 2008 },
+        { "id": "golf-6", "name": "Golf VI", "from": 2008, "to": 2012 },
+        { "id": "golf-7", "name": "Golf VII", "from": 2012, "to": 2019 },
+        { "id": "golf-8", "name": "Golf VIII", "from": 2019, "to": null }
+      ] },
+      { "id": "passat", "name": "Passat", "generations": [
+        { "id": "passat-1", "name": "Passat B3", "from": 1988, "to": 1993 },
+        { "id": "passat-2", "name": "Passat B4", "from": 1993, "to": 1997 },
+        { "id": "passat-3", "name": "Passat B5", "from": 1996, "to": 2005 },
+        { "id": "passat-4", "name": "Passat B6", "from": 2005, "to": 2010 },
+        { "id": "passat-5", "name": "Passat B7", "from": 2010, "to": 2015 },
+        { "id": "passat-6", "name": "Passat B8", "from": 2014, "to": 2023 },
+        { "id": "passat-7", "name": "Passat B9", "from": 2023, "to": null }
+      ] },
+      { "id": "polo", "name": "Polo", "generations": [
+        { "id": "polo-1", "name": "Polo III", "from": 1994, "to": 2002 },
+        { "id": "polo-2", "name": "Polo IV", "from": 2001, "to": 2009 },
+        { "id": "polo-3", "name": "Polo V", "from": 2009, "to": 2017 },
+        { "id": "polo-4", "name": "Polo VI", "from": 2017, "to": null }
+      ] },
+      { "id": "tiguan", "name": "Tiguan", "generations": [
+        { "id": "tiguan-1", "name": "Tiguan I", "from": 2007, "to": 2016 },
+        { "id": "tiguan-2", "name": "Tiguan II", "from": 2016, "to": 2023 },
+        { "id": "tiguan-3", "name": "Tiguan III", "from": 2023, "to": null }
+      ] },
+      { "id": "touareg", "name": "Touareg", "generations": [
+        { "id": "touareg-1", "name": "Touareg I", "from": 2002, "to": 2010 },
+        { "id": "touareg-2", "name": "Touareg II", "from": 2010, "to": 2018 },
+        { "id": "touareg-3", "name": "Touareg III", "from": 2018, "to": null }
+      ] },
+      { "id": "t-roc", "name": "T-Roc", "generations": [
+        { "id": "t-roc-1", "name": "T-Roc", "from": 2017, "to": null }
+      ] },
+      { "id": "t-cross", "name": "T-Cross", "generations": [
+        { "id": "t-cross-1", "name": "T-Cross", "from": 2019, "to": null }
+      ] },
+      { "id": "up", "name": "Up!", "generations": [
+        { "id": "up-1", "name": "Up!", "from": 2011, "to": 2023 }
+      ] },
+      { "id": "bora", "name": "Bora", "generations": [
+        { "id": "bora-1", "name": "Bora", "from": 1998, "to": 2005 }
+      ] },
+      { "id": "jetta", "name": "Jetta", "generations": [
+        { "id": "jetta-1", "name": "Jetta V", "from": 2005, "to": 2011 },
+        { "id": "jetta-2", "name": "Jetta VI", "from": 2011, "to": 2018 }
+      ] },
+      { "id": "sharan", "name": "Sharan", "generations": [
+        { "id": "sharan-1", "name": "Sharan I", "from": 1995, "to": 2010 },
+        { "id": "sharan-2", "name": "Sharan II", "from": 2010, "to": 2022 }
+      ] },
+      { "id": "touran", "name": "Touran", "generations": [
+        { "id": "touran-1", "name": "Touran I", "from": 2003, "to": 2015 },
+        { "id": "touran-2", "name": "Touran II", "from": 2015, "to": null }
+      ] },
+      { "id": "scirocco", "name": "Scirocco", "generations": [
+        { "id": "scirocco-1", "name": "Scirocco III", "from": 2008, "to": 2017 }
+      ] },
+      { "id": "beetle", "name": "Beetle", "generations": [
+        { "id": "beetle-1", "name": "New Beetle", "from": 1998, "to": 2011 },
+        { "id": "beetle-2", "name": "Beetle", "from": 2011, "to": 2019 }
+      ] },
+      { "id": "id-3", "name": "ID.3", "generations": [
+        { "id": "id-3-1", "name": "ID.3", "from": 2020, "to": null }
+      ] },
+      { "id": "id-4", "name": "ID.4", "generations": [
+        { "id": "id-4-1", "name": "ID.4", "from": 2020, "to": null }
+      ] },
+      { "id": "id-5", "name": "ID.5", "generations": [
+        { "id": "id-5-1", "name": "ID.5", "from": 2021, "to": null }
+      ] },
+      { "id": "id-7", "name": "ID.7", "generations": [
+        { "id": "id-7-1", "name": "ID.7", "from": 2023, "to": null }
+      ] },
+      { "id": "caddy", "name": "Caddy", "generations": [
+        { "id": "caddy-1", "name": "Caddy I", "from": 1979, "to": 1996 },
+        { "id": "caddy-2", "name": "Caddy II", "from": 1995, "to": 2004 },
+        { "id": "caddy-3", "name": "Caddy III", "from": 2004, "to": 2020 },
+        { "id": "caddy-4", "name": "Caddy IV", "from": 2020, "to": null }
+      ] },
+      { "id": "transporter", "name": "Transporter", "generations": [
+        { "id": "transporter-1", "name": "Transporter T4", "from": 1990, "to": 2003 },
+        { "id": "transporter-2", "name": "Transporter T5", "from": 2003, "to": 2015 },
+        { "id": "transporter-3", "name": "Transporter T6", "from": 2015, "to": 2024 },
+        { "id": "transporter-4", "name": "Transporter T7", "from": 2024, "to": null }
+      ] },
+      { "id": "crafter", "name": "Crafter", "generations": [
+        { "id": "crafter-1", "name": "Crafter I", "from": 2006, "to": 2016 },
+        { "id": "crafter-2", "name": "Crafter II", "from": 2016, "to": null }
+      ] },
+      { "id": "amarok", "name": "Amarok", "generations": [
+        { "id": "amarok-1", "name": "Amarok I", "from": 2010, "to": 2020 },
+        { "id": "amarok-2", "name": "Amarok II", "from": 2022, "to": null }
+      ] }
+    ] },
+    { "id": "skoda", "name": "Škoda", "models": [
+      { "id": "octavia", "name": "Octavia", "generations": [
+        { "id": "octavia-1", "name": "Octavia I", "from": 1996, "to": 2010 },
+        { "id": "octavia-2", "name": "Octavia II", "from": 2004, "to": 2013 },
+        { "id": "octavia-3", "name": "Octavia III", "from": 2012, "to": 2020 },
+        { "id": "octavia-4", "name": "Octavia IV", "from": 2019, "to": null }
+      ] },
+      { "id": "fabia", "name": "Fabia", "generations": [
+        { "id": "fabia-1", "name": "Fabia I", "from": 1999, "to": 2007 },
+        { "id": "fabia-2", "name": "Fabia II", "from": 2007, "to": 2014 },
+        { "id": "fabia-3", "name": "Fabia III", "from": 2014, "to": 2021 },
+        { "id": "fabia-4", "name": "Fabia IV", "from": 2021, "to": null }
+      ] },
+      { "id": "superb", "name": "Superb", "generations": [
+        { "id": "superb-1", "name": "Superb I", "from": 2001, "to": 2008 },
+        { "id": "superb-2", "name": "Superb II", "from": 2008, "to": 2015 },
+        { "id": "superb-3", "name": "Superb III", "from": 2015, "to": 2023 },
+        { "id": "superb-4", "name": "Superb IV", "from": 2023, "to": null }
+      ] },
+      { "id": "kodiaq", "name": "Kodiaq", "generations": [
+        { "id": "kodiaq-1", "name": "Kodiaq I", "from": 2016, "to": 2024 },
+        { "id": "kodiaq-2", "name": "Kodiaq II", "from": 2024, "to": null }
+      ] },
+      { "id": "karoq", "name": "Karoq", "generations": [
+        { "id": "karoq-1", "name": "Karoq", "from": 2017, "to": null }
+      ] },
+      { "id": "kamiq", "name": "Kamiq", "generations": [
+        { "id": "kamiq-1", "name": "Kamiq", "from": 2019, "to": null }
+      ] },
+      { "id": "scala", "name": "Scala", "generations": [
+        { "id": "scala-1", "name": "Scala", "from": 2019, "to": null }
+      ] },
+      { "id": "citigo", "name": "Citigo", "generations": [
+        { "id": "citigo-1", "name": "Citigo", "from": 2011, "to": 2020 }
+      ] },
+      { "id": "roomster", "name": "Roomster", "generations": [
+        { "id": "roomster-1", "name": "Roomster", "from": 2006, "to": 2015 }
+      ] },
+      { "id": "yeti", "name": "Yeti", "generations": [
+        { "id": "yeti-1", "name": "Yeti", "from": 2009, "to": 2017 }
+      ] },
+      { "id": "felicia", "name": "Felicia", "generations": [
+        { "id": "felicia-1", "name": "Felicia", "from": 1994, "to": 2001 }
+      ] },
+      { "id": "favorit", "name": "Favorit", "generations": [
+        { "id": "favorit-1", "name": "Favorit", "from": 1987, "to": 1994 }
+      ] },
+      { "id": "rapid", "name": "Rapid", "generations": [
+        { "id": "rapid-1", "name": "Rapid", "from": 2012, "to": 2019 }
+      ] },
+      { "id": "enyaq", "name": "Enyaq", "generations": [
+        { "id": "enyaq-1", "name": "Enyaq", "from": 2020, "to": null }
+      ] },
+      { "id": "105-120", "name": "105/120", "generations": [
+        { "id": "105-120-1", "name": "105/120", "from": 1976, "to": 1990 }
+      ] }
+    ] },
+    { "id": "ford", "name": "Ford", "models": [
+      { "id": "focus", "name": "Focus", "generations": [
+        { "id": "focus-1", "name": "Focus I", "from": 1998, "to": 2004 },
+        { "id": "focus-2", "name": "Focus II", "from": 2004, "to": 2011 },
+        { "id": "focus-3", "name": "Focus III", "from": 2011, "to": 2018 },
+        { "id": "focus-4", "name": "Focus IV", "from": 2018, "to": null }
+      ] },
+      { "id": "fiesta", "name": "Fiesta", "generations": [
+        { "id": "fiesta-1", "name": "Fiesta III", "from": 1989, "to": 1997 },
+        { "id": "fiesta-2", "name": "Fiesta IV", "from": 1995, "to": 2002 },
+        { "id": "fiesta-3", "name": "Fiesta V", "from": 2002, "to": 2008 },
+        { "id": "fiesta-4", "name": "Fiesta VI", "from": 2008, "to": 2017 },
+        { "id": "fiesta-5", "name": "Fiesta VII", "from": 2017, "to": 2023 }
+      ] },
+      { "id": "mondeo", "name": "Mondeo", "generations": [
+        { "id": "mondeo-1", "name": "Mondeo I", "from": 1993, "to": 2000 },
+        { "id": "mondeo-2", "name": "Mondeo II", "from": 2000, "to": 2007 },
+        { "id": "mondeo-3", "name": "Mondeo III", "from": 2007, "to": 2014 },
+        { "id": "mondeo-4", "name": "Mondeo IV", "from": 2014, "to": 2022 }
+      ] },
+      { "id": "kuga", "name": "Kuga", "generations": [
+        { "id": "kuga-1", "name": "Kuga I", "from": 2008, "to": 2012 },
+        { "id": "kuga-2", "name": "Kuga II", "from": 2012, "to": 2019 },
+        { "id": "kuga-3", "name": "Kuga III", "from": 2019, "to": null }
+      ] },
+      { "id": "puma", "name": "Puma", "generations": [
+        { "id": "puma-1", "name": "Puma", "from": 2019, "to": null }
+      ] },
+      { "id": "ecosport", "name": "EcoSport", "generations": [
+        { "id": "ecosport-1", "name": "EcoSport", "from": 2003, "to": 2023 }
+      ] },
+      { "id": "c-max", "name": "C-Max", "generations": [
+        { "id": "c-max-1", "name": "C-Max I", "from": 2003, "to": 2010 },
+        { "id": "c-max-2", "name": "C-Max II", "from": 2010, "to": 2019 }
+      ] },
+      { "id": "s-max", "name": "S-Max", "generations": [
+        { "id": "s-max-1", "name": "S-Max", "from": 2006, "to": 2023 }
+      ] },
+      { "id": "galaxy", "name": "Galaxy", "generations": [
+        { "id": "galaxy-1", "name": "Galaxy I", "from": 1995, "to": 2006 },
+        { "id": "galaxy-2", "name": "Galaxy II", "from": 2006, "to": 2015 },
+        { "id": "galaxy-3", "name": "Galaxy III", "from": 2015, "to": 2023 }
+      ] },
+      { "id": "fusion", "name": "Fusion", "generations": [
+        { "id": "fusion-1", "name": "Fusion", "from": 2002, "to": 2012 }
+      ] },
+      { "id": "ka", "name": "Ka", "generations": [
+        { "id": "ka-1", "name": "Ka I", "from": 1996, "to": 2008 },
+        { "id": "ka-2", "name": "Ka II", "from": 2008, "to": 2016 }
+      ] },
+      { "id": "ranger", "name": "Ranger", "generations": [
+        { "id": "ranger-1", "name": "Ranger (1998)", "from": 1998, "to": 2006 },
+        { "id": "ranger-2", "name": "Ranger (2006)", "from": 2006, "to": 2011 },
+        { "id": "ranger-3", "name": "Ranger (2011)", "from": 2011, "to": 2022 },
+        { "id": "ranger-4", "name": "Ranger (2022)", "from": 2022, "to": null }
+      ] },
+      { "id": "mustang", "name": "Mustang", "generations": [
+        { "id": "mustang-1", "name": "Mustang VI", "from": 2015, "to": 2023 },
+        { "id": "mustang-2", "name": "Mustang VII", "from": 2024, "to": null }
+      ] },
+      { "id": "mustang-mach-e", "name": "Mustang Mach-E", "generations": [
+        { "id": "mustang-mach-e-1", "name": "Mustang Mach-E", "from": 2020, "to": null }
+      ] },
+      { "id": "transit", "name": "Transit", "generations": [
+        { "id": "transit-1", "name": "Transit (1986)", "from": 1986, "to": 2000 },
+        { "id": "transit-2", "name": "Transit (2000)", "from": 2000, "to": 2006 },
+        { "id": "transit-3", "name": "Transit (2006)", "from": 2006, "to": 2014 },
+        { "id": "transit-4", "name": "Transit (2014)", "from": 2014, "to": 2023 },
+        { "id": "transit-5", "name": "Transit (2023)", "from": 2023, "to": null }
+      ] },
+      { "id": "transit-custom", "name": "Transit Custom", "generations": [
+        { "id": "transit-custom-1", "name": "Transit Custom (2012)", "from": 2012, "to": 2023 },
+        { "id": "transit-custom-2", "name": "Transit Custom (2023)", "from": 2023, "to": null }
+      ] },
+      { "id": "transit-connect", "name": "Transit Connect", "generations": [
+        { "id": "transit-connect-1", "name": "Transit Connect (2002)", "from": 2002, "to": 2013 },
+        { "id": "transit-connect-2", "name": "Transit Connect (2013)", "from": 2013, "to": 2023 },
+        { "id": "transit-connect-3", "name": "Transit Connect (2023)", "from": 2023, "to": null }
+      ] }
+    ] },
+    { "id": "opel", "name": "Opel", "models": [
+      { "id": "astra", "name": "Astra", "generations": [
+        { "id": "astra-1", "name": "Astra F", "from": 1991, "to": 1998 },
+        { "id": "astra-2", "name": "Astra G", "from": 1998, "to": 2009 },
+        { "id": "astra-3", "name": "Astra H", "from": 2004, "to": 2014 },
+        { "id": "astra-4", "name": "Astra J", "from": 2009, "to": 2015 },
+        { "id": "astra-5", "name": "Astra K", "from": 2015, "to": 2021 },
+        { "id": "astra-6", "name": "Astra L", "from": 2021, "to": null }
+      ] },
+      { "id": "corsa", "name": "Corsa", "generations": [
+        { "id": "corsa-1", "name": "Corsa B", "from": 1993, "to": 2000 },
+        { "id": "corsa-2", "name": "Corsa C", "from": 2000, "to": 2006 },
+        { "id": "corsa-3", "name": "Corsa D", "from": 2006, "to": 2014 },
+        { "id": "corsa-4", "name": "Corsa E", "from": 2014, "to": 2019 },
+        { "id": "corsa-5", "name": "Corsa F", "from": 2019, "to": null }
+      ] },
+      { "id": "vectra", "name": "Vectra", "generations": [
+        { "id": "vectra-1", "name": "Vectra A", "from": 1988, "to": 1995 },
+        { "id": "vectra-2", "name": "Vectra B", "from": 1995, "to": 2002 },
+        { "id": "vectra-3", "name": "Vectra C", "from": 2002, "to": 2008 }
+      ] },
+      { "id": "insignia", "name": "Insignia", "generations": [
+        { "id": "insignia-1", "name": "Insignia A", "from": 2008, "to": 2017 },
+        { "id": "insignia-2", "name": "Insignia B", "from": 2017, "to": 2022 }
+      ] },
+      { "id": "zafira", "name": "Zafira", "generations": [
+        { "id": "zafira-1", "name": "Zafira A", "from": 1999, "to": 2005 },
+        { "id": "zafira-2", "name": "Zafira B", "from": 2005, "to": 2011 },
+        { "id": "zafira-3", "name": "Zafira C", "from": 2011, "to": 2019 }
+      ] },
+      { "id": "meriva", "name": "Meriva", "generations": [
+        { "id": "meriva-1", "name": "Meriva A", "from": 2003, "to": 2010 },
+        { "id": "meriva-2", "name": "Meriva B", "from": 2010, "to": 2017 }
+      ] },
+      { "id": "omega", "name": "Omega", "generations": [
+        { "id": "omega-1", "name": "Omega A", "from": 1986, "to": 1994 },
+        { "id": "omega-2", "name": "Omega B", "from": 1994, "to": 2003 }
+      ] },
+      { "id": "mokka", "name": "Mokka", "generations": [
+        { "id": "mokka-1", "name": "Mokka A", "from": 2012, "to": 2019 },
+        { "id": "mokka-2", "name": "Mokka B", "from": 2019, "to": null }
+      ] },
+      { "id": "crossland", "name": "Crossland", "generations": [
+        { "id": "crossland-1", "name": "Crossland", "from": 2017, "to": null }
+      ] },
+      { "id": "grandland", "name": "Grandland", "generations": [
+        { "id": "grandland-1", "name": "Grandland", "from": 2017, "to": null }
+      ] },
+      { "id": "combo", "name": "Combo", "generations": [
+        { "id": "combo-1", "name": "Combo (1993)", "from": 1993, "to": 2001 },
+        { "id": "combo-2", "name": "Combo (2001)", "from": 2001, "to": 2011 },
+        { "id": "combo-3", "name": "Combo (2011)", "from": 2011, "to": 2018 },
+        { "id": "combo-4", "name": "Combo (2018)", "from": 2018, "to": null }
+      ] },
+      { "id": "vivaro", "name": "Vivaro", "generations": [
+        { "id": "vivaro-1", "name": "Vivaro (2001)", "from": 2001, "to": 2014 },
+        { "id": "vivaro-2", "name": "Vivaro (2014)", "from": 2014, "to": 2019 },
+        { "id": "vivaro-3", "name": "Vivaro (2019)", "from": 2019, "to": null }
+      ] },
+      { "id": "movano", "name": "Movano", "generations": [
+        { "id": "movano-1", "name": "Movano (1997)", "from": 1997, "to": 2010 },
+        { "id": "movano-2", "name": "Movano (2010)", "from": 2010, "to": 2021 },
+        { "id": "movano-3", "name": "Movano (2021)", "from": 2021, "to": null }
+      ] }
+    ] },
+    { "id": "hyundai", "name": "Hyundai", "models": [
+      { "id": "i10", "name": "i10", "generations": [
+        { "id": "i10-1", "name": "i10 I", "from": 2007, "to": 2013 },
+        { "id": "i10-2", "name": "i10 II", "from": 2013, "to": 2019 },
+        { "id": "i10-3", "name": "i10 III", "from": 2019, "to": null }
+      ] },
+      { "id": "i20", "name": "i20", "generations": [
+        { "id": "i20-1", "name": "i20 I", "from": 2008, "to": 2014 },
+        { "id": "i20-2", "name": "i20 II", "from": 2014, "to": 2020 },
+        { "id": "i20-3", "name": "i20 III", "from": 2020, "to": null }
+      ] },
+      { "id": "i30", "name": "i30", "generations": [
+        { "id": "i30-1", "name": "i30 I", "from": 2007, "to": 2012 },
+        { "id": "i30-2", "name": "i30 II", "from": 2012, "to": 2017 },
+        { "id": "i30-3", "name": "i30 III", "from": 2017, "to": null }
+      ] },
+      { "id": "tucson", "name": "Tucson", "generations": [
+        { "id": "tucson-1", "name": "Tucson I", "from": 2004, "to": 2010 },
+        { "id": "tucson-2", "name": "Tucson II", "from": 2010, "to": 2015 },
+        { "id": "tucson-3", "name": "Tucson III", "from": 2015, "to": 2020 },
+        { "id": "tucson-4", "name": "Tucson IV", "from": 2020, "to": null }
+      ] },
+      { "id": "santa-fe", "name": "Santa Fe", "generations": [
+        { "id": "santa-fe-1", "name": "Santa Fe I", "from": 2000, "to": 2006 },
+        { "id": "santa-fe-2", "name": "Santa Fe II", "from": 2006, "to": 2012 },
+        { "id": "santa-fe-3", "name": "Santa Fe III", "from": 2012, "to": 2018 },
+        { "id": "santa-fe-4", "name": "Santa Fe IV", "from": 2018, "to": 2023 },
+        { "id": "santa-fe-5", "name": "Santa Fe V", "from": 2023, "to": null }
+      ] },
+      { "id": "kona", "name": "Kona", "generations": [
+        { "id": "kona-1", "name": "Kona I", "from": 2017, "to": 2023 },
+        { "id": "kona-2", "name": "Kona II", "from": 2023, "to": null }
+      ] },
+      { "id": "getz", "name": "Getz", "generations": [
+        { "id": "getz-1", "name": "Getz", "from": 2002, "to": 2011 }
+      ] },
+      { "id": "elantra", "name": "Elantra", "generations": [
+        { "id": "elantra-1", "name": "Elantra VI", "from": 2015, "to": 2020 },
+        { "id": "elantra-2", "name": "Elantra VII", "from": 2020, "to": null }
+      ] },
+      { "id": "ioniq", "name": "Ioniq", "generations": [
+        { "id": "ioniq-1", "name": "Ioniq", "from": 2016, "to": 2022 }
+      ] },
+      { "id": "ioniq-5", "name": "Ioniq 5", "generations": [
+        { "id": "ioniq-5-1", "name": "Ioniq 5", "from": 2021, "to": null }
+      ] },
+      { "id": "ioniq-6", "name": "Ioniq 6", "generations": [
+        { "id": "ioniq-6-1", "name": "Ioniq 6", "from": 2022, "to": null }
+      ] },
+      { "id": "bayon", "name": "Bayon", "generations": [
+        { "id": "bayon-1", "name": "Bayon", "from": 2021, "to": null }
+      ] }
+    ] },
+    { "id": "toyota", "name": "Toyota", "models": [
+      { "id": "corolla", "name": "Corolla", "generations": [
+        { "id": "corolla-1", "name": "Corolla E12", "from": 2002, "to": 2006 },
+        { "id": "corolla-2", "name": "Corolla E140", "from": 2006, "to": 2013 },
+        { "id": "corolla-3", "name": "Corolla E170", "from": 2013, "to": 2018 },
+        { "id": "corolla-4", "name": "Corolla E210", "from": 2018, "to": null }
+      ] },
+      { "id": "auris", "name": "Auris", "generations": [
+        { "id": "auris-1", "name": "Auris I", "from": 2006, "to": 2012 },
+        { "id": "auris-2", "name": "Auris II", "from": 2012, "to": 2018 }
+      ] },
+      { "id": "yaris", "name": "Yaris", "generations": [
+        { "id": "yaris-1", "name": "Yaris I", "from": 1999, "to": 2005 },
+        { "id": "yaris-2", "name": "Yaris II", "from": 2005, "to": 2011 },
+        { "id": "yaris-3", "name": "Yaris III", "from": 2011, "to": 2020 },
+        { "id": "yaris-4", "name": "Yaris IV", "from": 2020, "to": null }
+      ] },
+      { "id": "aygo", "name": "Aygo", "generations": [
+        { "id": "aygo-1", "name": "Aygo I", "from": 2005, "to": 2014 },
+        { "id": "aygo-2", "name": "Aygo II", "from": 2014, "to": 2022 }
+      ] },
+      { "id": "avensis", "name": "Avensis", "generations": [
+        { "id": "avensis-1", "name": "Avensis I", "from": 1997, "to": 2003 },
+        { "id": "avensis-2", "name": "Avensis II", "from": 2003, "to": 2008 },
+        { "id": "avensis-3", "name": "Avensis III", "from": 2008, "to": 2018 }
+      ] },
+      { "id": "prius", "name": "Prius", "generations": [
+        { "id": "prius-1", "name": "Prius I", "from": 1997, "to": 2003 },
+        { "id": "prius-2", "name": "Prius II", "from": 2003, "to": 2009 },
+        { "id": "prius-3", "name": "Prius III", "from": 2009, "to": 2015 },
+        { "id": "prius-4", "name": "Prius IV", "from": 2015, "to": 2022 },
+        { "id": "prius-5", "name": "Prius V", "from": 2023, "to": null }
+      ] },
+      { "id": "rav4", "name": "RAV4", "generations": [
+        { "id": "rav4-1", "name": "RAV4 I", "from": 1994, "to": 2000 },
+        { "id": "rav4-2", "name": "RAV4 II", "from": 2000, "to": 2005 },
+        { "id": "rav4-3", "name": "RAV4 III", "from": 2005, "to": 2012 },
+        { "id": "rav4-4", "name": "RAV4 IV", "from": 2012, "to": 2018 },
+        { "id": "rav4-5", "name": "RAV4 V", "from": 2018, "to": null }
+      ] },
+      { "id": "c-hr", "name": "C-HR", "generations": [
+        { "id": "c-hr-1", "name": "C-HR I", "from": 2016, "to": 2023 },
+        { "id": "c-hr-2", "name": "C-HR II", "from": 2023, "to": null }
+      ] },
+      { "id": "hilux", "name": "Hilux", "generations": [
+        { "id": "hilux-1", "name": "Hilux VI", "from": 1997, "to": 2005 },
+        { "id": "hilux-2", "name": "Hilux VII", "from": 2005, "to": 2015 },
+        { "id": "hilux-3", "name": "Hilux VIII", "from": 2015, "to": null }
+      ] },
+      { "id": "proace", "name": "Proace", "generations": [
+        { "id": "proace-1", "name": "Proace I", "from": 2013, "to": 2016 },
+        { "id": "proace-2", "name": "Proace II", "from": 2016, "to": null }
+      ] },
+      { "id": "proace-city", "name": "Proace City", "generations": [
+        { "id": "proace-city-1", "name": "Proace City", "from": 2019, "to": null }
+      ] },
+      { "id": "bz4x", "name": "bZ4X", "generations": [
+        { "id": "bz4x-1", "name": "bZ4X", "from": 2022, "to": null }
+      ] }
+    ] },
+    { "id": "peugeot", "name": "Peugeot", "models": [
+      { "id": "205", "name": "205", "generations": [
+        { "id": "205-1", "name": "205", "from": 1983, "to": 1998 }
+      ] },
+      { "id": "206", "name": "206", "generations": [
+        { "id": "206-1", "name": "206", "from": 1998, "to": 2012 }
+      ] },
+      { "id": "207", "name": "207", "generations": [
+        { "id": "207-1", "name": "207", "from": 2006, "to": 2014 }
+      ] },
+      { "id": "208", "name": "208", "generations": [
+        { "id": "208-1", "name": "208 I", "from": 2012, "to": 2019 },
+        { "id": "208-2", "name": "208 II", "from": 2019, "to": null }
+      ] },
+      { "id": "306", "name": "306", "generations": [
+        { "id": "306-1", "name": "306", "from": 1993, "to": 2002 }
+      ] },
+      { "id": "307", "name": "307", "generations": [
+        { "id": "307-1", "name": "307", "from": 2001, "to": 2008 }
+      ] },
+      { "id": "308", "name": "308", "generations": [
+        { "id": "308-1", "name": "308 I", "from": 2007, "to": 2013 },
+        { "id": "308-2", "name": "308 II", "from": 2013, "to": 2021 },
+        { "id": "308-3", "name": "308 III", "from": 2021, "to": null }
+      ] },
+      { "id": "405", "name": "405", "generations": [
+        { "id": "405-1", "name": "405", "from": 1987, "to": 1997 }
+      ] },
+      { "id": "406", "name": "406", "generations": [
+        { "id": "406-1", "name": "406", "from": 1995, "to": 2004 }
+      ] },
+      { "id": "407", "name": "407", "generations": [
+        { "id": "407-1", "name": "407", "from": 2004, "to": 2011 }
+      ] },
+      { "id": "508", "name": "508", "generations": [
+        { "id": "508-1", "name": "508 I", "from": 2011, "to": 2018 },
+        { "id": "508-2", "name": "508 II", "from": 2018, "to": null }
+      ] },
+      { "id": "108", "name": "108", "generations": [
+        { "id": "108-1", "name": "108", "from": 2014, "to": 2021 }
+      ] },
+      { "id": "2008", "name": "2008", "generations": [
+        { "id": "2008-1", "name": "2008 I", "from": 2013, "to": 2019 },
+        { "id": "2008-2", "name": "2008 II", "from": 2019, "to": null }
+      ] },
+      { "id": "3008", "name": "3008", "generations": [
+        { "id": "3008-1", "name": "3008 I", "from": 2009, "to": 2016 },
+        { "id": "3008-2", "name": "3008 II", "from": 2016, "to": null }
+      ] },
+      { "id": "5008", "name": "5008", "generations": [
+        { "id": "5008-1", "name": "5008 I", "from": 2009, "to": 2017 },
+        { "id": "5008-2", "name": "5008 II", "from": 2017, "to": null }
+      ] },
+      { "id": "partner", "name": "Partner", "generations": [
+        { "id": "partner-1", "name": "Partner I", "from": 1996, "to": 2008 },
+        { "id": "partner-2", "name": "Partner II", "from": 2008, "to": 2018 },
+        { "id": "partner-3", "name": "Partner III", "from": 2018, "to": null }
+      ] },
+      { "id": "expert", "name": "Expert", "generations": [
+        { "id": "expert-1", "name": "Expert I", "from": 1995, "to": 2007 },
+        { "id": "expert-2", "name": "Expert II", "from": 2007, "to": 2016 },
+        { "id": "expert-3", "name": "Expert III", "from": 2016, "to": null }
+      ] },
+      { "id": "traveller", "name": "Traveller", "generations": [
+        { "id": "traveller-1", "name": "Traveller", "from": 2016, "to": null }
+      ] }
+    ] },
+    { "id": "citroen", "name": "Citroën", "models": [
+      { "id": "c1", "name": "C1", "generations": [
+        { "id": "c1-1", "name": "C1 I", "from": 2005, "to": 2014 },
+        { "id": "c1-2", "name": "C1 II", "from": 2014, "to": 2022 }
+      ] },
+      { "id": "c2", "name": "C2", "generations": [
+        { "id": "c2-1", "name": "C2", "from": 2003, "to": 2009 }
+      ] },
+      { "id": "c3", "name": "C3", "generations": [
+        { "id": "c3-1", "name": "C3 I", "from": 2002, "to": 2010 },
+        { "id": "c3-2", "name": "C3 II", "from": 2010, "to": 2016 },
+        { "id": "c3-3", "name": "C3 III", "from": 2016, "to": null }
+      ] },
+      { "id": "c3-aircross", "name": "C3 Aircross", "generations": [
+        { "id": "c3-aircross-1", "name": "C3 Aircross", "from": 2017, "to": null }
+      ] },
+      { "id": "c4", "name": "C4", "generations": [
+        { "id": "c4-1", "name": "C4 I", "from": 2004, "to": 2010 },
+        { "id": "c4-2", "name": "C4 II", "from": 2010, "to": 2018 },
+        { "id": "c4-3", "name": "C4 III", "from": 2020, "to": null }
+      ] },
+      { "id": "c4-cactus", "name": "C4 Cactus", "generations": [
+        { "id": "c4-cactus-1", "name": "C4 Cactus", "from": 2014, "to": 2020 }
+      ] },
+      { "id": "c4-picasso", "name": "C4 Picasso", "generations": [
+        { "id": "c4-picasso-1", "name": "C4 Picasso I", "from": 2006, "to": 2013 },
+        { "id": "c4-picasso-2", "name": "C4 Picasso II", "from": 2013, "to": 2022 }
+      ] },
+      { "id": "c5", "name": "C5", "generations": [
+        { "id": "c5-1", "name": "C5 I", "from": 2001, "to": 2008 },
+        { "id": "c5-2", "name": "C5 II", "from": 2008, "to": 2017 }
+      ] },
+      { "id": "c5-x", "name": "C5 X", "generations": [
+        { "id": "c5-x-1", "name": "C5 X", "from": 2021, "to": null }
+      ] },
+      { "id": "c5-aircross", "name": "C5 Aircross", "generations": [
+        { "id": "c5-aircross-1", "name": "C5 Aircross", "from": 2017, "to": null }
+      ] },
+      { "id": "c-elysee", "name": "C-Elysée", "generations": [
+        { "id": "c-elysee-1", "name": "C-Elysée", "from": 2012, "to": 2022 }
+      ] },
+      { "id": "xsara", "name": "Xsara", "generations": [
+        { "id": "xsara-1", "name": "Xsara", "from": 1997, "to": 2006 }
+      ] },
+      { "id": "xsara-picasso", "name": "Xsara Picasso", "generations": [
+        { "id": "xsara-picasso-1", "name": "Xsara Picasso", "from": 1999, "to": 2012 }
+      ] },
+      { "id": "saxo", "name": "Saxo", "generations": [
+        { "id": "saxo-1", "name": "Saxo", "from": 1996, "to": 2004 }
+      ] },
+      { "id": "xantia", "name": "Xantia", "generations": [
+        { "id": "xantia-1", "name": "Xantia", "from": 1993, "to": 2001 }
+      ] },
+      { "id": "berlingo", "name": "Berlingo", "generations": [
+        { "id": "berlingo-1", "name": "Berlingo I", "from": 1996, "to": 2008 },
+        { "id": "berlingo-2", "name": "Berlingo II", "from": 2008, "to": 2018 },
+        { "id": "berlingo-3", "name": "Berlingo III", "from": 2018, "to": null }
+      ] },
+      { "id": "jumpy", "name": "Jumpy", "generations": [
+        { "id": "jumpy-1", "name": "Jumpy I", "from": 1995, "to": 2006 },
+        { "id": "jumpy-2", "name": "Jumpy II", "from": 2006, "to": 2016 },
+        { "id": "jumpy-3", "name": "Jumpy III", "from": 2016, "to": null }
+      ] },
+      { "id": "jumper", "name": "Jumper", "generations": [
+        { "id": "jumper-1", "name": "Jumper I", "from": 1994, "to": 2006 },
+        { "id": "jumper-2", "name": "Jumper II", "from": 2006, "to": null }
+      ] }
+    ] },
+    { "id": "fiat", "name": "Fiat", "models": [
+      { "id": "panda", "name": "Panda", "generations": [
+        { "id": "panda-1", "name": "Panda I", "from": 1980, "to": 2003 },
+        { "id": "panda-2", "name": "Panda II", "from": 2003, "to": 2012 },
+        { "id": "panda-3", "name": "Panda III", "from": 2011, "to": null }
+      ] },
+      { "id": "punto", "name": "Punto", "generations": [
+        { "id": "punto-1", "name": "Punto I", "from": 1993, "to": 1999 },
+        { "id": "punto-2", "name": "Punto II", "from": 1999, "to": 2010 },
+        { "id": "punto-3", "name": "Punto III", "from": 2005, "to": 2018 }
+      ] },
+      { "id": "500", "name": "500", "generations": [
+        { "id": "500-1", "name": "500", "from": 2007, "to": null }
+      ] },
+      { "id": "500x", "name": "500X", "generations": [
+        { "id": "500x-1", "name": "500X", "from": 2014, "to": null }
+      ] },
+      { "id": "500l", "name": "500L", "generations": [
+        { "id": "500l-1", "name": "500L", "from": 2012, "to": 2022 }
+      ] },
+      { "id": "tipo", "name": "Tipo", "generations": [
+        { "id": "tipo-1", "name": "Tipo I", "from": 1988, "to": 1995 },
+        { "id": "tipo-2", "name": "Tipo II", "from": 2015, "to": null }
+      ] },
+      { "id": "bravo-brava", "name": "Bravo / Brava", "generations": [
+        { "id": "bravo-brava-1", "name": "Bravo / Brava", "from": 1995, "to": 2001 }
+      ] },
+      { "id": "bravo", "name": "Bravo", "generations": [
+        { "id": "bravo-1", "name": "Bravo II", "from": 2007, "to": 2014 }
+      ] },
+      { "id": "stilo", "name": "Stilo", "generations": [
+        { "id": "stilo-1", "name": "Stilo", "from": 2001, "to": 2007 }
+      ] },
+      { "id": "marea", "name": "Marea", "generations": [
+        { "id": "marea-1", "name": "Marea", "from": 1996, "to": 2002 }
+      ] },
+      { "id": "doblo", "name": "Doblo", "generations": [
+        { "id": "doblo-1", "name": "Doblo I", "from": 2000, "to": 2010 },
+        { "id": "doblo-2", "name": "Doblo II", "from": 2010, "to": 2022 },
+        { "id": "doblo-3", "name": "Doblo III", "from": 2022, "to": null }
+      ] },
+      { "id": "ducato", "name": "Ducato", "generations": [
+        { "id": "ducato-1", "name": "Ducato I", "from": 1981, "to": 1994 },
+        { "id": "ducato-2", "name": "Ducato II", "from": 1994, "to": 2006 },
+        { "id": "ducato-3", "name": "Ducato III", "from": 2006, "to": null }
+      ] },
+      { "id": "scudo", "name": "Scudo", "generations": [
+        { "id": "scudo-1", "name": "Scudo (1995)", "from": 1995, "to": 2007 },
+        { "id": "scudo-2", "name": "Scudo (2007)", "from": 2007, "to": 2016 },
+        { "id": "scudo-3", "name": "Scudo (2016)", "from": 2016, "to": null }
+      ] }
+    ] },
+    { "id": "mercedes-benz", "name": "Mercedes-Benz", "models": [
+      { "id": "c-class", "name": "C-Class", "generations": [
+        { "id": "c-class-1", "name": "W202", "from": 1993, "to": 2000 },
+        { "id": "c-class-2", "name": "W203", "from": 2000, "to": 2007 },
+        { "id": "c-class-3", "name": "W204", "from": 2007, "to": 2014 },
+        { "id": "c-class-4", "name": "W205", "from": 2014, "to": 2021 },
+        { "id": "c-class-5", "name": "W206", "from": 2021, "to": null }
+      ] },
+      { "id": "e-class", "name": "E-Class", "generations": [
+        { "id": "e-class-1", "name": "W124", "from": 1984, "to": 1996 },
+        { "id": "e-class-2", "name": "W210", "from": 1995, "to": 2002 },
+        { "id": "e-class-3", "name": "W211", "from": 2002, "to": 2009 },
+        { "id": "e-class-4", "name": "W212", "from": 2009, "to": 2016 },
+        { "id": "e-class-5", "name": "W213", "from": 2016, "to": 2023 },
+        { "id": "e-class-6", "name": "W214", "from": 2023, "to": null }
+      ] },
+      { "id": "s-class", "name": "S-Class", "generations": [
+        { "id": "s-class-1", "name": "W140", "from": 1991, "to": 1998 },
+        { "id": "s-class-2", "name": "W220", "from": 1998, "to": 2005 },
+        { "id": "s-class-3", "name": "W221", "from": 2005, "to": 2013 },
+        { "id": "s-class-4", "name": "W222", "from": 2013, "to": 2020 },
+        { "id": "s-class-5", "name": "W223", "from": 2020, "to": null }
+      ] },
+      { "id": "a-class", "name": "A-Class", "generations": [
+        { "id": "a-class-1", "name": "W168", "from": 1997, "to": 2004 },
+        { "id": "a-class-2", "name": "W169", "from": 2004, "to": 2012 },
+        { "id": "a-class-3", "name": "W176", "from": 2012, "to": 2018 },
+        { "id": "a-class-4", "name": "W177", "from": 2018, "to": null }
+      ] },
+      { "id": "b-class", "name": "B-Class", "generations": [
+        { "id": "b-class-1", "name": "W245", "from": 2005, "to": 2011 },
+        { "id": "b-class-2", "name": "W246", "from": 2011, "to": 2018 },
+        { "id": "b-class-3", "name": "W247", "from": 2018, "to": null }
+      ] },
+      { "id": "cla", "name": "CLA", "generations": [
+        { "id": "cla-1", "name": "C117", "from": 2013, "to": 2019 },
+        { "id": "cla-2", "name": "C118", "from": 2019, "to": null }
+      ] },
+      { "id": "cls", "name": "CLS", "generations": [
+        { "id": "cls-1", "name": "C219", "from": 2004, "to": 2010 },
+        { "id": "cls-2", "name": "C218", "from": 2010, "to": 2018 },
+        { "id": "cls-3", "name": "C257", "from": 2018, "to": 2023 }
+      ] },
+      { "id": "glc", "name": "GLC", "generations": [
+        { "id": "glc-1", "name": "X253", "from": 2015, "to": 2022 },
+        { "id": "glc-2", "name": "X254", "from": 2022, "to": null }
+      ] },
+      { "id": "glk", "name": "GLK", "generations": [
+        { "id": "glk-1", "name": "X204", "from": 2008, "to": 2015 }
+      ] },
+      { "id": "ml", "name": "ML", "generations": [
+        { "id": "ml-1", "name": "W163", "from": 1997, "to": 2005 },
+        { "id": "ml-2", "name": "W164", "from": 2005, "to": 2011 },
+        { "id": "ml-3", "name": "W166", "from": 2011, "to": 2015 }
+      ] },
+      { "id": "gle", "name": "GLE", "generations": [
+        { "id": "gle-1", "name": "W166", "from": 2015, "to": 2019 },
+        { "id": "gle-2", "name": "W167", "from": 2019, "to": null }
+      ] },
+      { "id": "gla", "name": "GLA", "generations": [
+        { "id": "gla-1", "name": "X156", "from": 2013, "to": 2019 },
+        { "id": "gla-2", "name": "H247", "from": 2019, "to": null }
+      ] },
+      { "id": "glb", "name": "GLB", "generations": [
+        { "id": "glb-1", "name": "X247", "from": 2019, "to": null }
+      ] },
+      { "id": "vito", "name": "Vito", "generations": [
+        { "id": "vito-1", "name": "W638", "from": 1996, "to": 2003 },
+        { "id": "vito-2", "name": "W639", "from": 2003, "to": 2014 },
+        { "id": "vito-3", "name": "W447", "from": 2014, "to": null }
+      ] },
+      { "id": "sprinter", "name": "Sprinter", "generations": [
+        { "id": "sprinter-1", "name": "Sprinter I", "from": 1995, "to": 2006 },
+        { "id": "sprinter-2", "name": "Sprinter II", "from": 2006, "to": 2018 },
+        { "id": "sprinter-3", "name": "Sprinter III", "from": 2018, "to": null }
+      ] },
+      { "id": "190", "name": "190", "generations": [
+        { "id": "190-1", "name": "W201", "from": 1982, "to": 1993 }
+      ] },
+      { "id": "eqa", "name": "EQA", "generations": [
+        { "id": "eqa-1", "name": "EQA", "from": 2021, "to": null }
+      ] },
+      { "id": "eqb", "name": "EQB", "generations": [
+        { "id": "eqb-1", "name": "EQB", "from": 2021, "to": null }
+      ] },
+      { "id": "eqc", "name": "EQC", "generations": [
+        { "id": "eqc-1", "name": "EQC", "from": 2019, "to": 2024 }
+      ] },
+      { "id": "eqe", "name": "EQE", "generations": [
+        { "id": "eqe-1", "name": "EQE", "from": 2022, "to": null }
+      ] },
+      { "id": "eqs", "name": "EQS", "generations": [
+        { "id": "eqs-1", "name": "EQS", "from": 2021, "to": null }
+      ] }
+    ] },
+    { "id": "bmw", "name": "BMW", "models": [
+      { "id": "3-series", "name": "3 Series", "generations": [
+        { "id": "3-series-1", "name": "E36", "from": 1990, "to": 1998 },
+        { "id": "3-series-2", "name": "E46", "from": 1998, "to": 2006 },
+        { "id": "3-series-3", "name": "E90", "from": 2005, "to": 2013 },
+        { "id": "3-series-4", "name": "F30", "from": 2012, "to": 2019 },
+        { "id": "3-series-5", "name": "G20", "from": 2019, "to": null }
+      ] },
+      { "id": "5-series", "name": "5 Series", "generations": [
+        { "id": "5-series-1", "name": "E34", "from": 1988, "to": 1996 },
+        { "id": "5-series-2", "name": "E39", "from": 1995, "to": 2003 },
+        { "id": "5-series-3", "name": "E60", "from": 2003, "to": 2010 },
+        { "id": "5-series-4", "name": "F10", "from": 2010, "to": 2017 },
+        { "id": "5-series-5", "name": "G30", "from": 2017, "to": 2024 },
+        { "id": "5-series-6", "name": "G60", "from": 2024, "to": null }
+      ] },
+      { "id": "7-series", "name": "7 Series", "generations": [
+        { "id": "7-series-1", "name": "E38", "from": 1994, "to": 2001 },
+        { "id": "7-series-2", "name": "E65", "from": 2001, "to": 2008 },
+        { "id": "7-series-3", "name": "F01", "from": 2008, "to": 2015 },
+        { "id": "7-series-4", "name": "G11", "from": 2015, "to": 2022 },
+        { "id": "7-series-5", "name": "G70", "from": 2022, "to": null }
+      ] },
+      { "id": "1-series", "name": "1 Series", "generations": [
+        { "id": "1-series-1", "name": "E87", "from": 2004, "to": 2011 },
+        { "id": "1-series-2", "name": "F20", "from": 2011, "to": 2019 },
+        { "id": "1-series-3", "name": "F40", "from": 2019, "to": null }
+      ] },
+      { "id": "2-series", "name": "2 Series", "generations": [
+        { "id": "2-series-1", "name": "F22", "from": 2014, "to": 2021 },
+        { "id": "2-series-2", "name": "G42", "from": 2021, "to": null }
+      ] },
+      { "id": "4-series", "name": "4 Series", "generations": [
+        { "id": "4-series-1", "name": "F32", "from": 2013, "to": 2020 },
+        { "id": "4-series-2", "name": "G22", "from": 2020, "to": null }
+      ] },
+      { "id": "x1", "name": "X1", "generations": [
+        { "id": "x1-1", "name": "E84", "from": 2009, "to": 2015 },
+        { "id": "x1-2", "name": "F48", "from": 2015, "to": 2022 },
+        { "id": "x1-3", "name": "U11", "from": 2022, "to": null }
+      ] },
+      { "id": "x2", "name": "X2", "generations": [
+        { "id": "x2-1", "name": "F39", "from": 2017, "to": 2023 },
+        { "id": "x2-2", "name": "U10", "from": 2024, "to": null }
+      ] },
+      { "id": "x3", "name": "X3", "generations": [
+        { "id": "x3-1", "name": "E83", "from": 2003, "to": 2010 },
+        { "id": "x3-2", "name": "F25", "from": 2010, "to": 2017 },
+        { "id": "x3-3", "name": "G01", "from": 2017, "to": null }
+      ] },
+      { "id": "x4", "name": "X4", "generations": [
+        { "id": "x4-1", "name": "F26", "from": 2014, "to": 2018 },
+        { "id": "x4-2", "name": "G02", "from": 2018, "to": null }
+      ] },
+      { "id": "x5", "name": "X5", "generations": [
+        { "id": "x5-1", "name": "E53", "from": 1999, "to": 2006 },
+        { "id": "x5-2", "name": "E70", "from": 2006, "to": 2013 },
+        { "id": "x5-3", "name": "F15", "from": 2013, "to": 2018 },
+        { "id": "x5-4", "name": "G05", "from": 2018, "to": null }
+      ] },
+      { "id": "x6", "name": "X6", "generations": [
+        { "id": "x6-1", "name": "E71", "from": 2008, "to": 2014 },
+        { "id": "x6-2", "name": "F16", "from": 2014, "to": 2019 },
+        { "id": "x6-3", "name": "G06", "from": 2019, "to": null }
+      ] },
+      { "id": "x7", "name": "X7", "generations": [
+        { "id": "x7-1", "name": "G07", "from": 2019, "to": null }
+      ] },
+      { "id": "i3", "name": "i3", "generations": [
+        { "id": "i3-1", "name": "I01", "from": 2013, "to": 2022 }
+      ] },
+      { "id": "i4", "name": "i4", "generations": [
+        { "id": "i4-1", "name": "G26", "from": 2021, "to": null }
+      ] },
+      { "id": "ix", "name": "iX", "generations": [
+        { "id": "ix-1", "name": "I20", "from": 2021, "to": null }
+      ] },
+      { "id": "ix3", "name": "iX3", "generations": [
+        { "id": "ix3-1", "name": "G08", "from": 2020, "to": null }
+      ] },
+      { "id": "z4", "name": "Z4", "generations": [
+        { "id": "z4-1", "name": "E89", "from": 2009, "to": 2016 },
+        { "id": "z4-2", "name": "G29", "from": 2018, "to": null }
+      ] }
+    ] },
+    { "id": "audi", "name": "Audi", "models": [
+      { "id": "a1", "name": "A1", "generations": [
+        { "id": "a1-1", "name": "8X", "from": 2010, "to": 2018 },
+        { "id": "a1-2", "name": "GB", "from": 2018, "to": null }
+      ] },
+      { "id": "a3", "name": "A3", "generations": [
+        { "id": "a3-1", "name": "8L", "from": 1996, "to": 2003 },
+        { "id": "a3-2", "name": "8P", "from": 2003, "to": 2013 },
+        { "id": "a3-3", "name": "8V", "from": 2012, "to": 2020 },
+        { "id": "a3-4", "name": "8Y", "from": 2020, "to": null }
+      ] },
+      { "id": "a4", "name": "A4", "generations": [
+        { "id": "a4-1", "name": "B5", "from": 1994, "to": 2001 },
+        { "id": "a4-2", "name": "B6", "from": 2000, "to": 2005 },
+        { "id": "a4-3", "name": "B7", "from": 2004, "to": 2008 },
+        { "id": "a4-4", "name": "B8", "from": 2007, "to": 2015 },
+        { "id": "a4-5", "name": "B9", "from": 2015, "to": null }
+      ] },
+      { "id": "a5", "name": "A5", "generations": [
+        { "id": "a5-1", "name": "8T", "from": 2007, "to": 2016 },
+        { "id": "a5-2", "name": "F5", "from": 2016, "to": null }
+      ] },
+      { "id": "a6", "name": "A6", "generations": [
+        { "id": "a6-1", "name": "C4", "from": 1994, "to": 1997 },
+        { "id": "a6-2", "name": "C5", "from": 1997, "to": 2004 },
+        { "id": "a6-3", "name": "C6", "from": 2004, "to": 2011 },
+        { "id": "a6-4", "name": "C7", "from": 2011, "to": 2018 },
+        { "id": "a6-5", "name": "C8", "from": 2018, "to": null }
+      ] },
+      { "id": "a7", "name": "A7", "generations": [
+        { "id": "a7-1", "name": "4G", "from": 2010, "to": 2017 },
+        { "id": "a7-2", "name": "4K", "from": 2017, "to": null }
+      ] },
+      { "id": "a8", "name": "A8", "generations": [
+        { "id": "a8-1", "name": "D2", "from": 1994, "to": 2002 },
+        { "id": "a8-2", "name": "D3", "from": 2002, "to": 2009 },
+        { "id": "a8-3", "name": "D4", "from": 2009, "to": 2017 },
+        { "id": "a8-4", "name": "D5", "from": 2017, "to": null }
+      ] },
+      { "id": "q3", "name": "Q3", "generations": [
+        { "id": "q3-1", "name": "8U", "from": 2011, "to": 2018 },
+        { "id": "q3-2", "name": "F3", "from": 2018, "to": null }
+      ] },
+      { "id": "q5", "name": "Q5", "generations": [
+        { "id": "q5-1", "name": "8R", "from": 2008, "to": 2017 },
+        { "id": "q5-2", "name": "FY", "from": 2017, "to": null }
+      ] },
+      { "id": "q7", "name": "Q7", "generations": [
+        { "id": "q7-1", "name": "4L", "from": 2005, "to": 2015 },
+        { "id": "q7-2", "name": "4M", "from": 2015, "to": null }
+      ] },
+      { "id": "q8", "name": "Q8", "generations": [
+        { "id": "q8-1", "name": "4M", "from": 2018, "to": null }
+      ] },
+      { "id": "tt", "name": "TT", "generations": [
+        { "id": "tt-1", "name": "8N", "from": 1998, "to": 2006 },
+        { "id": "tt-2", "name": "8J", "from": 2006, "to": 2014 },
+        { "id": "tt-3", "name": "8S", "from": 2014, "to": 2023 }
+      ] },
+      { "id": "e-tron", "name": "e-tron", "generations": [
+        { "id": "e-tron-1", "name": "e-tron", "from": 2019, "to": null }
+      ] },
+      { "id": "q4-e-tron", "name": "Q4 e-tron", "generations": [
+        { "id": "q4-e-tron-1", "name": "Q4 e-tron", "from": 2021, "to": null }
+      ] }
+    ] },
+    { "id": "kia", "name": "Kia", "models": [
+      { "id": "sportage", "name": "Sportage", "generations": [
+        { "id": "sportage-1", "name": "Sportage I", "from": 1994, "to": 2004 },
+        { "id": "sportage-2", "name": "Sportage II", "from": 2004, "to": 2010 },
+        { "id": "sportage-3", "name": "Sportage III", "from": 2010, "to": 2015 },
+        { "id": "sportage-4", "name": "Sportage IV", "from": 2015, "to": 2021 },
+        { "id": "sportage-5", "name": "Sportage V", "from": 2021, "to": null }
+      ] },
+      { "id": "ceed", "name": "Ceed", "generations": [
+        { "id": "ceed-1", "name": "Cee'd I", "from": 2006, "to": 2012 },
+        { "id": "ceed-2", "name": "Cee'd II", "from": 2012, "to": 2018 },
+        { "id": "ceed-3", "name": "Ceed III", "from": 2018, "to": null }
+      ] },
+      { "id": "rio", "name": "Rio", "generations": [
+        { "id": "rio-1", "name": "Rio I", "from": 2000, "to": 2005 },
+        { "id": "rio-2", "name": "Rio II", "from": 2005, "to": 2011 },
+        { "id": "rio-3", "name": "Rio III", "from": 2011, "to": 2017 },
+        { "id": "rio-4", "name": "Rio IV", "from": 2017, "to": 2023 }
+      ] },
+      { "id": "picanto", "name": "Picanto", "generations": [
+        { "id": "picanto-1", "name": "Picanto I", "from": 2004, "to": 2011 },
+        { "id": "picanto-2", "name": "Picanto II", "from": 2011, "to": 2017 },
+        { "id": "picanto-3", "name": "Picanto III", "from": 2017, "to": null }
+      ] },
+      { "id": "sorento", "name": "Sorento", "generations": [
+        { "id": "sorento-1", "name": "Sorento I", "from": 2002, "to": 2009 },
+        { "id": "sorento-2", "name": "Sorento II", "from": 2009, "to": 2014 },
+        { "id": "sorento-3", "name": "Sorento III", "from": 2014, "to": 2020 },
+        { "id": "sorento-4", "name": "Sorento IV", "from": 2020, "to": null }
+      ] },
+      { "id": "stonic", "name": "Stonic", "generations": [
+        { "id": "stonic-1", "name": "Stonic", "from": 2017, "to": null }
+      ] },
+      { "id": "niro", "name": "Niro", "generations": [
+        { "id": "niro-1", "name": "Niro I", "from": 2016, "to": 2022 },
+        { "id": "niro-2", "name": "Niro II", "from": 2022, "to": null }
+      ] },
+      { "id": "ev6", "name": "EV6", "generations": [
+        { "id": "ev6-1", "name": "EV6", "from": 2021, "to": null }
+      ] },
+      { "id": "ev9", "name": "EV9", "generations": [
+        { "id": "ev9-1", "name": "EV9", "from": 2023, "to": null }
+      ] },
+      { "id": "soul", "name": "Soul", "generations": [
+        { "id": "soul-1", "name": "Soul I", "from": 2008, "to": 2013 },
+        { "id": "soul-2", "name": "Soul II", "from": 2013, "to": 2019 },
+        { "id": "soul-3", "name": "Soul III", "from": 2019, "to": null }
+      ] },
+      { "id": "xceed", "name": "XCeed", "generations": [
+        { "id": "xceed-1", "name": "XCeed", "from": 2019, "to": null }
+      ] }
+    ] },
+    { "id": "nissan", "name": "Nissan", "models": [
+      { "id": "qashqai", "name": "Qashqai", "generations": [
+        { "id": "qashqai-1", "name": "Qashqai I", "from": 2006, "to": 2013 },
+        { "id": "qashqai-2", "name": "Qashqai II", "from": 2013, "to": 2021 },
+        { "id": "qashqai-3", "name": "Qashqai III", "from": 2021, "to": null }
+      ] },
+      { "id": "juke", "name": "Juke", "generations": [
+        { "id": "juke-1", "name": "Juke I", "from": 2010, "to": 2019 },
+        { "id": "juke-2", "name": "Juke II", "from": 2019, "to": null }
+      ] },
+      { "id": "x-trail", "name": "X-Trail", "generations": [
+        { "id": "x-trail-1", "name": "X-Trail I", "from": 2000, "to": 2007 },
+        { "id": "x-trail-2", "name": "X-Trail II", "from": 2007, "to": 2013 },
+        { "id": "x-trail-3", "name": "X-Trail III", "from": 2013, "to": 2021 },
+        { "id": "x-trail-4", "name": "X-Trail IV", "from": 2021, "to": null }
+      ] },
+      { "id": "micra", "name": "Micra", "generations": [
+        { "id": "micra-1", "name": "Micra K11", "from": 1992, "to": 2002 },
+        { "id": "micra-2", "name": "Micra K12", "from": 2002, "to": 2010 },
+        { "id": "micra-3", "name": "Micra K13", "from": 2010, "to": 2017 },
+        { "id": "micra-4", "name": "Micra K14", "from": 2017, "to": 2023 }
+      ] },
+      { "id": "note", "name": "Note", "generations": [
+        { "id": "note-1", "name": "Note I", "from": 2005, "to": 2012 },
+        { "id": "note-2", "name": "Note II", "from": 2012, "to": 2021 }
+      ] },
+      { "id": "leaf", "name": "Leaf", "generations": [
+        { "id": "leaf-1", "name": "Leaf I", "from": 2010, "to": 2017 },
+        { "id": "leaf-2", "name": "Leaf II", "from": 2017, "to": null }
+      ] },
+      { "id": "almera", "name": "Almera", "generations": [
+        { "id": "almera-1", "name": "Almera N15", "from": 1995, "to": 2000 },
+        { "id": "almera-2", "name": "Almera N16", "from": 2000, "to": 2006 }
+      ] },
+      { "id": "primera", "name": "Primera", "generations": [
+        { "id": "primera-1", "name": "Primera P11", "from": 1996, "to": 2002 },
+        { "id": "primera-2", "name": "Primera P12", "from": 2002, "to": 2007 }
+      ] },
+      { "id": "navara", "name": "Navara", "generations": [
+        { "id": "navara-1", "name": "Navara D40", "from": 2005, "to": 2015 },
+        { "id": "navara-2", "name": "Navara D23", "from": 2015, "to": null }
+      ] },
+      { "id": "ariya", "name": "Ariya", "generations": [
+        { "id": "ariya-1", "name": "Ariya", "from": 2022, "to": null }
+      ] },
+      { "id": "nv200", "name": "NV200", "generations": [
+        { "id": "nv200-1", "name": "NV200", "from": 2009, "to": 2021 }
+      ] },
+      { "id": "nv400", "name": "NV400", "generations": [
+        { "id": "nv400-1", "name": "NV400", "from": 2010, "to": 2021 }
+      ] },
+      { "id": "townstar", "name": "Townstar", "generations": [
+        { "id": "townstar-1", "name": "Townstar", "from": 2021, "to": null }
+      ] }
+    ] },
+    { "id": "mazda", "name": "Mazda", "models": [
+      { "id": "mazda2", "name": "Mazda2", "generations": [
+        { "id": "mazda2-1", "name": "Mazda2 DY", "from": 2002, "to": 2007 },
+        { "id": "mazda2-2", "name": "Mazda2 DE", "from": 2007, "to": 2014 },
+        { "id": "mazda2-3", "name": "Mazda2 DJ", "from": 2014, "to": null }
+      ] },
+      { "id": "mazda3", "name": "Mazda3", "generations": [
+        { "id": "mazda3-1", "name": "Mazda3 BK", "from": 2003, "to": 2009 },
+        { "id": "mazda3-2", "name": "Mazda3 BL", "from": 2009, "to": 2013 },
+        { "id": "mazda3-3", "name": "Mazda3 BM", "from": 2013, "to": 2019 },
+        { "id": "mazda3-4", "name": "Mazda3 BP", "from": 2019, "to": null }
+      ] },
+      { "id": "mazda5", "name": "Mazda5", "generations": [
+        { "id": "mazda5-1", "name": "Mazda5", "from": 2005, "to": 2015 }
+      ] },
+      { "id": "mazda6", "name": "Mazda6", "generations": [
+        { "id": "mazda6-1", "name": "Mazda6 GG", "from": 2002, "to": 2007 },
+        { "id": "mazda6-2", "name": "Mazda6 GH", "from": 2007, "to": 2012 },
+        { "id": "mazda6-3", "name": "Mazda6 GJ", "from": 2012, "to": 2023 }
+      ] },
+      { "id": "cx-3", "name": "CX-3", "generations": [
+        { "id": "cx-3-1", "name": "CX-3", "from": 2015, "to": 2022 }
+      ] },
+      { "id": "cx-5", "name": "CX-5", "generations": [
+        { "id": "cx-5-1", "name": "CX-5 I", "from": 2011, "to": 2017 },
+        { "id": "cx-5-2", "name": "CX-5 II", "from": 2017, "to": null }
+      ] },
+      { "id": "cx-30", "name": "CX-30", "generations": [
+        { "id": "cx-30-1", "name": "CX-30", "from": 2019, "to": null }
+      ] },
+      { "id": "cx-60", "name": "CX-60", "generations": [
+        { "id": "cx-60-1", "name": "CX-60", "from": 2022, "to": null }
+      ] },
+      { "id": "mx-5", "name": "MX-5", "generations": [
+        { "id": "mx-5-1", "name": "MX-5 NA", "from": 1989, "to": 1998 },
+        { "id": "mx-5-2", "name": "MX-5 NB", "from": 1998, "to": 2005 },
+        { "id": "mx-5-3", "name": "MX-5 NC", "from": 2005, "to": 2015 },
+        { "id": "mx-5-4", "name": "MX-5 ND", "from": 2015, "to": null }
+      ] },
+      { "id": "mx-30", "name": "MX-30", "generations": [
+        { "id": "mx-30-1", "name": "MX-30", "from": 2020, "to": null }
+      ] }
+    ] },
+    { "id": "seat", "name": "SEAT", "models": [
+      { "id": "ibiza", "name": "Ibiza", "generations": [
+        { "id": "ibiza-1", "name": "Ibiza II", "from": 1993, "to": 2002 },
+        { "id": "ibiza-2", "name": "Ibiza III", "from": 2002, "to": 2008 },
+        { "id": "ibiza-3", "name": "Ibiza IV", "from": 2008, "to": 2017 },
+        { "id": "ibiza-4", "name": "Ibiza V", "from": 2017, "to": null }
+      ] },
+      { "id": "leon", "name": "Leon", "generations": [
+        { "id": "leon-1", "name": "Leon I", "from": 1999, "to": 2005 },
+        { "id": "leon-2", "name": "Leon II", "from": 2005, "to": 2012 },
+        { "id": "leon-3", "name": "Leon III", "from": 2012, "to": 2020 },
+        { "id": "leon-4", "name": "Leon IV", "from": 2020, "to": null }
+      ] },
+      { "id": "toledo", "name": "Toledo", "generations": [
+        { "id": "toledo-1", "name": "Toledo I", "from": 1991, "to": 1999 },
+        { "id": "toledo-2", "name": "Toledo II", "from": 1999, "to": 2004 },
+        { "id": "toledo-3", "name": "Toledo III", "from": 2004, "to": 2009 },
+        { "id": "toledo-4", "name": "Toledo IV", "from": 2012, "to": 2019 }
+      ] },
+      { "id": "cordoba", "name": "Cordoba", "generations": [
+        { "id": "cordoba-1", "name": "Cordoba I", "from": 1993, "to": 1999 },
+        { "id": "cordoba-2", "name": "Cordoba II", "from": 1999, "to": 2002 },
+        { "id": "cordoba-3", "name": "Cordoba III", "from": 2002, "to": 2009 }
+      ] },
+      { "id": "altea", "name": "Altea", "generations": [
+        { "id": "altea-1", "name": "Altea", "from": 2004, "to": 2015 }
+      ] },
+      { "id": "arona", "name": "Arona", "generations": [
+        { "id": "arona-1", "name": "Arona", "from": 2017, "to": null }
+      ] },
+      { "id": "ateca", "name": "Ateca", "generations": [
+        { "id": "ateca-1", "name": "Ateca", "from": 2016, "to": null }
+      ] },
+      { "id": "tarraco", "name": "Tarraco", "generations": [
+        { "id": "tarraco-1", "name": "Tarraco", "from": 2018, "to": null }
+      ] },
+      { "id": "alhambra", "name": "Alhambra", "generations": [
+        { "id": "alhambra-1", "name": "Alhambra I", "from": 1996, "to": 2010 },
+        { "id": "alhambra-2", "name": "Alhambra II", "from": 2010, "to": 2020 }
+      ] },
+      { "id": "mii", "name": "Mii", "generations": [
+        { "id": "mii-1", "name": "Mii", "from": 2011, "to": 2019 }
+      ] }
+    ] },
+    { "id": "volvo", "name": "Volvo", "models": [
+      { "id": "v40", "name": "V40", "generations": [
+        { "id": "v40-1", "name": "V40 I", "from": 1995, "to": 2004 },
+        { "id": "v40-2", "name": "V40 II", "from": 2012, "to": 2019 }
+      ] },
+      { "id": "s40", "name": "S40", "generations": [
+        { "id": "s40-1", "name": "S40 I", "from": 1995, "to": 2004 },
+        { "id": "s40-2", "name": "S40 II", "from": 2004, "to": 2012 }
+      ] },
+      { "id": "s60", "name": "S60", "generations": [
+        { "id": "s60-1", "name": "S60 I", "from": 2000, "to": 2009 },
+        { "id": "s60-2", "name": "S60 II", "from": 2009, "to": 2018 },
+        { "id": "s60-3", "name": "S60 III", "from": 2018, "to": null }
+      ] },
+      { "id": "v60", "name": "V60", "generations": [
+        { "id": "v60-1", "name": "V60 I", "from": 2010, "to": 2018 },
+        { "id": "v60-2", "name": "V60 II", "from": 2018, "to": null }
+      ] },
+      { "id": "v70", "name": "V70", "generations": [
+        { "id": "v70-1", "name": "V70 I", "from": 1996, "to": 2000 },
+        { "id": "v70-2", "name": "V70 II", "from": 2000, "to": 2007 },
+        { "id": "v70-3", "name": "V70 III", "from": 2007, "to": 2016 }
+      ] },
+      { "id": "xc60", "name": "XC60", "generations": [
+        { "id": "xc60-1", "name": "XC60 I", "from": 2008, "to": 2017 },
+        { "id": "xc60-2", "name": "XC60 II", "from": 2017, "to": null }
+      ] },
+      { "id": "xc70", "name": "XC70", "generations": [
+        { "id": "xc70-1", "name": "XC70 I", "from": 2000, "to": 2007 },
+        { "id": "xc70-2", "name": "XC70 II", "from": 2007, "to": 2016 }
+      ] },
+      { "id": "xc40", "name": "XC40", "generations": [
+        { "id": "xc40-1", "name": "XC40", "from": 2017, "to": null }
+      ] },
+      { "id": "xc90", "name": "XC90", "generations": [
+        { "id": "xc90-1", "name": "XC90 I", "from": 2002, "to": 2014 },
+        { "id": "xc90-2", "name": "XC90 II", "from": 2015, "to": null }
+      ] },
+      { "id": "s90", "name": "S90", "generations": [
+        { "id": "s90-1", "name": "S90", "from": 2016, "to": null }
+      ] },
+      { "id": "v90", "name": "V90", "generations": [
+        { "id": "v90-1", "name": "V90", "from": 2016, "to": null }
+      ] },
+      { "id": "c30", "name": "C30", "generations": [
+        { "id": "c30-1", "name": "C30", "from": 2006, "to": 2013 }
+      ] },
+      { "id": "v50", "name": "V50", "generations": [
+        { "id": "v50-1", "name": "V50", "from": 2004, "to": 2012 }
+      ] },
+      { "id": "ex30", "name": "EX30", "generations": [
+        { "id": "ex30-1", "name": "EX30", "from": 2023, "to": null }
+      ] }
+    ] },
+    { "id": "suzuki", "name": "Suzuki", "models": [
+      { "id": "swift", "name": "Swift", "generations": [
+        { "id": "swift-1", "name": "Swift (1988)", "from": 1988, "to": 2000 },
+        { "id": "swift-2", "name": "Swift (2000)", "from": 2000, "to": 2005 },
+        { "id": "swift-3", "name": "Swift (2005)", "from": 2005, "to": 2010 },
+        { "id": "swift-4", "name": "Swift (2010)", "from": 2010, "to": 2017 },
+        { "id": "swift-5", "name": "Swift (2017)", "from": 2017, "to": 2023 },
+        { "id": "swift-6", "name": "Swift (2023)", "from": 2023, "to": null }
+      ] },
+      { "id": "vitara", "name": "Vitara", "generations": [
+        { "id": "vitara-1", "name": "Vitara I", "from": 1988, "to": 1998 },
+        { "id": "vitara-2", "name": "Vitara II", "from": 2015, "to": null }
+      ] },
+      { "id": "grand-vitara", "name": "Grand Vitara", "generations": [
+        { "id": "grand-vitara-1", "name": "Grand Vitara I", "from": 1998, "to": 2005 },
+        { "id": "grand-vitara-2", "name": "Grand Vitara II", "from": 2005, "to": 2015 }
+      ] },
+      { "id": "sx4", "name": "SX4", "generations": [
+        { "id": "sx4-1", "name": "SX4", "from": 2006, "to": 2014 }
+      ] },
+      { "id": "s-cross", "name": "S-Cross", "generations": [
+        { "id": "s-cross-1", "name": "S-Cross", "from": 2013, "to": null }
+      ] },
+      { "id": "ignis", "name": "Ignis", "generations": [
+        { "id": "ignis-1", "name": "Ignis (2000)", "from": 2000, "to": 2006 },
+        { "id": "ignis-2", "name": "Ignis (2016)", "from": 2016, "to": null }
+      ] },
+      { "id": "jimny", "name": "Jimny", "generations": [
+        { "id": "jimny-1", "name": "Jimny (1981)", "from": 1981, "to": 1998 },
+        { "id": "jimny-2", "name": "Jimny (1998)", "from": 1998, "to": 2018 },
+        { "id": "jimny-3", "name": "Jimny (2018)", "from": 2018, "to": null }
+      ] },
+      { "id": "baleno", "name": "Baleno", "generations": [
+        { "id": "baleno-1", "name": "Baleno (1995)", "from": 1995, "to": 2002 },
+        { "id": "baleno-2", "name": "Baleno (2016)", "from": 2016, "to": null }
+      ] },
+      { "id": "liana", "name": "Liana", "generations": [
+        { "id": "liana-1", "name": "Liana", "from": 2001, "to": 2007 }
+      ] }
+    ] },
+    { "id": "mitsubishi", "name": "Mitsubishi", "models": [
+      { "id": "lancer", "name": "Lancer", "generations": [
+        { "id": "lancer-1", "name": "Lancer (2000)", "from": 2000, "to": 2007 },
+        { "id": "lancer-2", "name": "Lancer (2007)", "from": 2007, "to": 2017 }
+      ] },
+      { "id": "carisma", "name": "Carisma", "generations": [
+        { "id": "carisma-1", "name": "Carisma", "from": 1995, "to": 2004 }
+      ] },
+      { "id": "space-star", "name": "Space Star", "generations": [
+        { "id": "space-star-1", "name": "Space Star", "from": 1998, "to": 2005 }
+      ] },
+      { "id": "colt", "name": "Colt", "generations": [
+        { "id": "colt-1", "name": "Colt (2004)", "from": 2004, "to": 2012 },
+        { "id": "colt-2", "name": "Colt (2023)", "from": 2023, "to": null }
+      ] },
+      { "id": "asx", "name": "ASX", "generations": [
+        { "id": "asx-1", "name": "ASX I", "from": 2010, "to": 2022 },
+        { "id": "asx-2", "name": "ASX II", "from": 2022, "to": null }
+      ] },
+      { "id": "outlander", "name": "Outlander", "generations": [
+        { "id": "outlander-1", "name": "Outlander I", "from": 2001, "to": 2006 },
+        { "id": "outlander-2", "name": "Outlander II", "from": 2006, "to": 2012 },
+        { "id": "outlander-3", "name": "Outlander III", "from": 2012, "to": 2021 },
+        { "id": "outlander-4", "name": "Outlander IV", "from": 2021, "to": null }
+      ] },
+      { "id": "eclipse-cross", "name": "Eclipse Cross", "generations": [
+        { "id": "eclipse-cross-1", "name": "Eclipse Cross", "from": 2017, "to": null }
+      ] },
+      { "id": "pajero", "name": "Pajero", "generations": [
+        { "id": "pajero-1", "name": "Pajero I", "from": 1982, "to": 1991 },
+        { "id": "pajero-2", "name": "Pajero II", "from": 1991, "to": 1999 },
+        { "id": "pajero-3", "name": "Pajero III", "from": 1999, "to": 2006 },
+        { "id": "pajero-4", "name": "Pajero IV", "from": 2006, "to": 2021 }
+      ] },
+      { "id": "l200", "name": "L200", "generations": [
+        { "id": "l200-1", "name": "L200 (1996)", "from": 1996, "to": 2006 },
+        { "id": "l200-2", "name": "L200 (2006)", "from": 2006, "to": 2015 },
+        { "id": "l200-3", "name": "L200 (2015)", "from": 2015, "to": null }
+      ] }
+    ] },
+    { "id": "honda", "name": "Honda", "models": [
+      { "id": "civic", "name": "Civic", "generations": [
+        { "id": "civic-1", "name": "Civic VI", "from": 1995, "to": 2000 },
+        { "id": "civic-2", "name": "Civic VII", "from": 2000, "to": 2005 },
+        { "id": "civic-3", "name": "Civic VIII", "from": 2005, "to": 2011 },
+        { "id": "civic-4", "name": "Civic IX", "from": 2011, "to": 2017 },
+        { "id": "civic-5", "name": "Civic X", "from": 2017, "to": 2021 },
+        { "id": "civic-6", "name": "Civic XI", "from": 2021, "to": null }
+      ] },
+      { "id": "accord", "name": "Accord", "generations": [
+        { "id": "accord-1", "name": "Accord VI", "from": 1997, "to": 2002 },
+        { "id": "accord-2", "name": "Accord VII", "from": 2002, "to": 2008 },
+        { "id": "accord-3", "name": "Accord VIII", "from": 2008, "to": 2015 }
+      ] },
+      { "id": "cr-v", "name": "CR-V", "generations": [
+        { "id": "cr-v-1", "name": "CR-V I", "from": 1995, "to": 2001 },
+        { "id": "cr-v-2", "name": "CR-V II", "from": 2001, "to": 2006 },
+        { "id": "cr-v-3", "name": "CR-V III", "from": 2006, "to": 2012 },
+        { "id": "cr-v-4", "name": "CR-V IV", "from": 2012, "to": 2018 },
+        { "id": "cr-v-5", "name": "CR-V V", "from": 2018, "to": 2023 },
+        { "id": "cr-v-6", "name": "CR-V VI", "from": 2023, "to": null }
+      ] },
+      { "id": "hr-v", "name": "HR-V", "generations": [
+        { "id": "hr-v-1", "name": "HR-V I", "from": 1998, "to": 2006 },
+        { "id": "hr-v-2", "name": "HR-V II", "from": 2015, "to": 2021 },
+        { "id": "hr-v-3", "name": "HR-V III", "from": 2021, "to": null }
+      ] },
+      { "id": "jazz", "name": "Jazz", "generations": [
+        { "id": "jazz-1", "name": "Jazz I", "from": 2001, "to": 2008 },
+        { "id": "jazz-2", "name": "Jazz II", "from": 2008, "to": 2015 },
+        { "id": "jazz-3", "name": "Jazz III", "from": 2015, "to": 2020 },
+        { "id": "jazz-4", "name": "Jazz IV", "from": 2020, "to": null }
+      ] }
+    ] },
+    { "id": "chevrolet", "name": "Chevrolet", "models": [
+      { "id": "matiz", "name": "Matiz", "generations": [
+        { "id": "matiz-1", "name": "Matiz", "from": 1998, "to": 2005 }
+      ] },
+      { "id": "aveo", "name": "Aveo", "generations": [
+        { "id": "aveo-1", "name": "Kalos", "from": 2002, "to": 2011 },
+        { "id": "aveo-2", "name": "Aveo II", "from": 2011, "to": 2015 }
+      ] },
+      { "id": "lacetti", "name": "Lacetti", "generations": [
+        { "id": "lacetti-1", "name": "Lacetti", "from": 2002, "to": 2011 }
+      ] },
+      { "id": "cruze", "name": "Cruze", "generations": [
+        { "id": "cruze-1", "name": "Cruze", "from": 2008, "to": 2016 }
+      ] },
+      { "id": "captiva", "name": "Captiva", "generations": [
+        { "id": "captiva-1", "name": "Captiva", "from": 2006, "to": 2018 }
+      ] },
+      { "id": "spark", "name": "Spark", "generations": [
+        { "id": "spark-1", "name": "Spark I", "from": 2005, "to": 2010 },
+        { "id": "spark-2", "name": "Spark II", "from": 2010, "to": 2015 }
+      ] }
+    ] },
+    { "id": "alfa-romeo", "name": "Alfa Romeo", "models": [
+      { "id": "147", "name": "147", "generations": [
+        { "id": "147-1", "name": "147", "from": 2000, "to": 2010 }
+      ] },
+      { "id": "156", "name": "156", "generations": [
+        { "id": "156-1", "name": "156", "from": 1997, "to": 2006 }
+      ] },
+      { "id": "159", "name": "159", "generations": [
+        { "id": "159-1", "name": "159", "from": 2005, "to": 2011 }
+      ] },
+      { "id": "mito", "name": "MiTo", "generations": [
+        { "id": "mito-1", "name": "MiTo", "from": 2008, "to": 2018 }
+      ] },
+      { "id": "giulietta", "name": "Giulietta", "generations": [
+        { "id": "giulietta-1", "name": "Giulietta", "from": 2010, "to": 2020 }
+      ] },
+      { "id": "giulia", "name": "Giulia", "generations": [
+        { "id": "giulia-1", "name": "Giulia", "from": 2016, "to": null }
+      ] },
+      { "id": "stelvio", "name": "Stelvio", "generations": [
+        { "id": "stelvio-1", "name": "Stelvio", "from": 2017, "to": null }
+      ] },
+      { "id": "tonale", "name": "Tonale", "generations": [
+        { "id": "tonale-1", "name": "Tonale", "from": 2022, "to": null }
+      ] },
+      { "id": "junior", "name": "Junior", "generations": [
+        { "id": "junior-1", "name": "Junior", "from": 2024, "to": null }
+      ] }
+    ] },
+    { "id": "jeep", "name": "Jeep", "models": [
+      { "id": "grand-cherokee", "name": "Grand Cherokee", "generations": [
+        { "id": "grand-cherokee-1", "name": "Grand Cherokee I", "from": 1993, "to": 1998 },
+        { "id": "grand-cherokee-2", "name": "Grand Cherokee II", "from": 1998, "to": 2005 },
+        { "id": "grand-cherokee-3", "name": "Grand Cherokee III", "from": 2005, "to": 2010 },
+        { "id": "grand-cherokee-4", "name": "Grand Cherokee IV", "from": 2010, "to": 2021 },
+        { "id": "grand-cherokee-5", "name": "Grand Cherokee V", "from": 2021, "to": null }
+      ] },
+      { "id": "cherokee", "name": "Cherokee", "generations": [
+        { "id": "cherokee-1", "name": "Cherokee (1984)", "from": 1984, "to": 2001 },
+        { "id": "cherokee-2", "name": "Cherokee (2001)", "from": 2001, "to": 2007 },
+        { "id": "cherokee-3", "name": "Cherokee (2007)", "from": 2007, "to": 2013 },
+        { "id": "cherokee-4", "name": "Cherokee (2013)", "from": 2013, "to": 2023 }
+      ] },
+      { "id": "compass", "name": "Compass", "generations": [
+        { "id": "compass-1", "name": "Compass I", "from": 2006, "to": 2016 },
+        { "id": "compass-2", "name": "Compass II", "from": 2017, "to": null }
+      ] },
+      { "id": "renegade", "name": "Renegade", "generations": [
+        { "id": "renegade-1", "name": "Renegade", "from": 2014, "to": null }
+      ] },
+      { "id": "patriot", "name": "Patriot", "generations": [
+        { "id": "patriot-1", "name": "Patriot", "from": 2006, "to": 2016 }
+      ] },
+      { "id": "wrangler", "name": "Wrangler", "generations": [
+        { "id": "wrangler-1", "name": "Wrangler (1986)", "from": 1986, "to": 1996 },
+        { "id": "wrangler-2", "name": "Wrangler (1996)", "from": 1996, "to": 2006 },
+        { "id": "wrangler-3", "name": "Wrangler (2006)", "from": 2006, "to": 2017 },
+        { "id": "wrangler-4", "name": "Wrangler (2017)", "from": 2017, "to": null }
+      ] },
+      { "id": "avenger", "name": "Avenger", "generations": [
+        { "id": "avenger-1", "name": "Avenger", "from": 2023, "to": null }
+      ] }
+    ] },
+    { "id": "land-rover", "name": "Land Rover", "models": [
+      { "id": "defender", "name": "Defender", "generations": [
+        { "id": "defender-1", "name": "Defender (1983)", "from": 1983, "to": 2016 },
+        { "id": "defender-2", "name": "Defender (2020)", "from": 2020, "to": null }
+      ] },
+      { "id": "discovery", "name": "Discovery", "generations": [
+        { "id": "discovery-1", "name": "Discovery I", "from": 1989, "to": 1998 },
+        { "id": "discovery-2", "name": "Discovery II", "from": 1998, "to": 2004 },
+        { "id": "discovery-3", "name": "Discovery III", "from": 2004, "to": 2009 },
+        { "id": "discovery-4", "name": "Discovery IV", "from": 2009, "to": 2017 },
+        { "id": "discovery-5", "name": "Discovery V", "from": 2017, "to": null }
+      ] },
+      { "id": "discovery-sport", "name": "Discovery Sport", "generations": [
+        { "id": "discovery-sport-1", "name": "Discovery Sport", "from": 2014, "to": null }
+      ] },
+      { "id": "freelander", "name": "Freelander", "generations": [
+        { "id": "freelander-1", "name": "Freelander I", "from": 1997, "to": 2006 },
+        { "id": "freelander-2", "name": "Freelander II", "from": 2006, "to": 2014 }
+      ] },
+      { "id": "range-rover", "name": "Range Rover", "generations": [
+        { "id": "range-rover-1", "name": "Range Rover I", "from": 1970, "to": 1994 },
+        { "id": "range-rover-2", "name": "Range Rover II", "from": 1994, "to": 2002 },
+        { "id": "range-rover-3", "name": "Range Rover III", "from": 2002, "to": 2012 },
+        { "id": "range-rover-4", "name": "Range Rover IV", "from": 2012, "to": 2021 },
+        { "id": "range-rover-5", "name": "Range Rover V", "from": 2021, "to": null }
+      ] },
+      { "id": "range-rover-sport", "name": "Range Rover Sport", "generations": [
+        { "id": "range-rover-sport-1", "name": "Range Rover Sport I", "from": 2005, "to": 2013 },
+        { "id": "range-rover-sport-2", "name": "Range Rover Sport II", "from": 2013, "to": 2022 },
+        { "id": "range-rover-sport-3", "name": "Range Rover Sport III", "from": 2022, "to": null }
+      ] },
+      { "id": "range-rover-evoque", "name": "Range Rover Evoque", "generations": [
+        { "id": "range-rover-evoque-1", "name": "Range Rover Evoque I", "from": 2011, "to": 2018 },
+        { "id": "range-rover-evoque-2", "name": "Range Rover Evoque II", "from": 2018, "to": null }
+      ] },
+      { "id": "range-rover-velar", "name": "Range Rover Velar", "generations": [
+        { "id": "range-rover-velar-1", "name": "Range Rover Velar", "from": 2017, "to": null }
+      ] }
+    ] },
+    { "id": "mini", "name": "Mini", "models": [
+      { "id": "hatch", "name": "Hatch", "generations": [
+        { "id": "hatch-1", "name": "Hatch (2001)", "from": 2001, "to": 2006 },
+        { "id": "hatch-2", "name": "Hatch (2006)", "from": 2006, "to": 2013 },
+        { "id": "hatch-3", "name": "Hatch (2013)", "from": 2013, "to": 2024 },
+        { "id": "hatch-4", "name": "Hatch (2024)", "from": 2024, "to": null }
+      ] },
+      { "id": "clubman", "name": "Clubman", "generations": [
+        { "id": "clubman-1", "name": "Clubman (2007)", "from": 2007, "to": 2014 },
+        { "id": "clubman-2", "name": "Clubman (2015)", "from": 2015, "to": 2023 }
+      ] },
+      { "id": "countryman", "name": "Countryman", "generations": [
+        { "id": "countryman-1", "name": "Countryman (2010)", "from": 2010, "to": 2016 },
+        { "id": "countryman-2", "name": "Countryman (2016)", "from": 2016, "to": 2023 },
+        { "id": "countryman-3", "name": "Countryman (2023)", "from": 2023, "to": null }
+      ] },
+      { "id": "convertible", "name": "Convertible", "generations": [
+        { "id": "convertible-1", "name": "Convertible (2004)", "from": 2004, "to": 2008 },
+        { "id": "convertible-2", "name": "Convertible (2009)", "from": 2009, "to": 2015 },
+        { "id": "convertible-3", "name": "Convertible (2016)", "from": 2016, "to": 2024 }
+      ] }
+    ] },
+    { "id": "smart", "name": "Smart", "models": [
+      { "id": "fortwo", "name": "Fortwo", "generations": [
+        { "id": "fortwo-1", "name": "Fortwo I", "from": 1998, "to": 2007 },
+        { "id": "fortwo-2", "name": "Fortwo II", "from": 2007, "to": 2014 },
+        { "id": "fortwo-3", "name": "Fortwo III", "from": 2014, "to": 2024 }
+      ] },
+      { "id": "forfour", "name": "Forfour", "generations": [
+        { "id": "forfour-1", "name": "Forfour I", "from": 2004, "to": 2006 },
+        { "id": "forfour-2", "name": "Forfour II", "from": 2014, "to": 2021 }
+      ] },
+      { "id": "smart-1", "name": "#1", "generations": [
+        { "id": "smart-1-1", "name": "#1", "from": 2022, "to": null }
+      ] },
+      { "id": "smart-3", "name": "#3", "generations": [
+        { "id": "smart-3-1", "name": "#3", "from": 2023, "to": null }
+      ] }
+    ] },
+    { "id": "tesla", "name": "Tesla", "models": [
+      { "id": "model-s", "name": "Model S", "generations": [
+        { "id": "model-s-1", "name": "Model S", "from": 2012, "to": null }
+      ] },
+      { "id": "model-x", "name": "Model X", "generations": [
+        { "id": "model-x-1", "name": "Model X", "from": 2015, "to": null }
+      ] },
+      { "id": "model-3", "name": "Model 3", "generations": [
+        { "id": "model-3-1", "name": "Model 3", "from": 2017, "to": null }
+      ] },
+      { "id": "model-y", "name": "Model Y", "generations": [
+        { "id": "model-y-1", "name": "Model Y", "from": 2020, "to": null }
+      ] }
+    ] },
+    { "id": "lada", "name": "Lada", "models": [
+      { "id": "niva", "name": "Niva", "generations": [
+        { "id": "niva-1", "name": "Niva", "from": 1977, "to": null }
+      ] },
+      { "id": "2105-2107", "name": "2105/2107", "generations": [
+        { "id": "2105-2107-1", "name": "2105/2107", "from": 1980, "to": 2012 }
+      ] },
+      { "id": "samara", "name": "Samara", "generations": [
+        { "id": "samara-1", "name": "Samara", "from": 1984, "to": 2013 }
+      ] },
+      { "id": "2110", "name": "2110", "generations": [
+        { "id": "2110-1", "name": "2110", "from": 1995, "to": 2012 }
+      ] },
+      { "id": "niva-travel", "name": "Niva Travel", "generations": [
+        { "id": "niva-travel-1", "name": "Niva Travel", "from": 2002, "to": null }
+      ] },
+      { "id": "kalina", "name": "Kalina", "generations": [
+        { "id": "kalina-1", "name": "Kalina", "from": 2004, "to": 2018 }
+      ] },
+      { "id": "priora", "name": "Priora", "generations": [
+        { "id": "priora-1", "name": "Priora", "from": 2007, "to": 2018 }
+      ] },
+      { "id": "largus", "name": "Largus", "generations": [
+        { "id": "largus-1", "name": "Largus", "from": 2012, "to": null }
+      ] },
+      { "id": "vesta", "name": "Vesta", "generations": [
+        { "id": "vesta-1", "name": "Vesta", "from": 2015, "to": null }
+      ] }
+    ] },
+    { "id": "lexus", "name": "Lexus", "models": [
+      { "id": "is", "name": "IS", "generations": [
+        { "id": "is-1", "name": "IS I", "from": 1998, "to": 2005 },
+        { "id": "is-2", "name": "IS II", "from": 2005, "to": 2013 },
+        { "id": "is-3", "name": "IS III", "from": 2013, "to": null }
+      ] },
+      { "id": "es", "name": "ES", "generations": [
+        { "id": "es-1", "name": "ES", "from": 2018, "to": null }
+      ] },
+      { "id": "rx", "name": "RX", "generations": [
+        { "id": "rx-1", "name": "RX I", "from": 1997, "to": 2003 },
+        { "id": "rx-2", "name": "RX II", "from": 2003, "to": 2008 },
+        { "id": "rx-3", "name": "RX III", "from": 2008, "to": 2015 },
+        { "id": "rx-4", "name": "RX IV", "from": 2015, "to": 2022 },
+        { "id": "rx-5", "name": "RX V", "from": 2022, "to": null }
+      ] },
+      { "id": "nx", "name": "NX", "generations": [
+        { "id": "nx-1", "name": "NX I", "from": 2014, "to": 2021 },
+        { "id": "nx-2", "name": "NX II", "from": 2021, "to": null }
+      ] },
+      { "id": "ux", "name": "UX", "generations": [
+        { "id": "ux-1", "name": "UX", "from": 2018, "to": null }
+      ] },
+      { "id": "ct", "name": "CT", "generations": [
+        { "id": "ct-1", "name": "CT 200h", "from": 2011, "to": 2022 }
+      ] },
+      { "id": "ls", "name": "LS", "generations": [
+        { "id": "ls-1", "name": "LS IV", "from": 2006, "to": 2017 },
+        { "id": "ls-2", "name": "LS V", "from": 2017, "to": null }
+      ] }
+    ] },
+    { "id": "cupra", "name": "Cupra", "models": [
+      { "id": "cupra-ateca", "name": "Ateca", "generations": [
+        { "id": "cupra-ateca-1", "name": "Ateca", "from": 2018, "to": null }
+      ] },
+      { "id": "formentor", "name": "Formentor", "generations": [
+        { "id": "formentor-1", "name": "Formentor", "from": 2020, "to": null }
+      ] },
+      { "id": "cupra-leon", "name": "Leon", "generations": [
+        { "id": "cupra-leon-1", "name": "Leon", "from": 2020, "to": null }
+      ] },
+      { "id": "born", "name": "Born", "generations": [
+        { "id": "born-1", "name": "Born", "from": 2021, "to": null }
+      ] },
+      { "id": "tavascan", "name": "Tavascan", "generations": [
+        { "id": "tavascan-1", "name": "Tavascan", "from": 2024, "to": null }
+      ] },
+      { "id": "terramar", "name": "Terramar", "generations": [
+        { "id": "terramar-1", "name": "Terramar", "from": 2024, "to": null }
+      ] }
+    ] },
+    { "id": "ds", "name": "DS", "models": [
+      { "id": "ds-3", "name": "DS 3", "generations": [
+        { "id": "ds-3-1", "name": "DS 3", "from": 2010, "to": 2019 },
+        { "id": "ds-3-2", "name": "DS 3 Crossback", "from": 2018, "to": 2022 },
+        { "id": "ds-3-3", "name": "DS 3 II", "from": 2022, "to": null }
+      ] },
+      { "id": "ds-4", "name": "DS 4", "generations": [
+        { "id": "ds-4-1", "name": "DS 4", "from": 2011, "to": 2018 },
+        { "id": "ds-4-2", "name": "DS 4 II", "from": 2021, "to": null }
+      ] },
+      { "id": "ds-5", "name": "DS 5", "generations": [
+        { "id": "ds-5-1", "name": "DS 5", "from": 2011, "to": 2018 }
+      ] },
+      { "id": "ds-7", "name": "DS 7", "generations": [
+        { "id": "ds-7-1", "name": "DS 7 Crossback", "from": 2017, "to": null }
+      ] },
+      { "id": "ds-9", "name": "DS 9", "generations": [
+        { "id": "ds-9-1", "name": "DS 9", "from": 2020, "to": null }
+      ] }
+    ] },
+    { "id": "ssangyong", "name": "SsangYong / KGM", "models": [
+      { "id": "korando", "name": "Korando", "generations": [
+        { "id": "korando-1", "name": "Korando (1996)", "from": 1996, "to": 2006 },
+        { "id": "korando-2", "name": "Korando (2010)", "from": 2010, "to": 2019 },
+        { "id": "korando-3", "name": "Korando (2019)", "from": 2019, "to": null }
+      ] },
+      { "id": "rexton", "name": "Rexton", "generations": [
+        { "id": "rexton-1", "name": "Rexton (2001)", "from": 2001, "to": 2012 },
+        { "id": "rexton-2", "name": "Rexton (2012)", "from": 2012, "to": 2017 },
+        { "id": "rexton-3", "name": "Rexton (2017)", "from": 2017, "to": null }
+      ] },
+      { "id": "tivoli", "name": "Tivoli", "generations": [
+        { "id": "tivoli-1", "name": "Tivoli", "from": 2015, "to": null }
+      ] },
+      { "id": "musso", "name": "Musso", "generations": [
+        { "id": "musso-1", "name": "Musso", "from": 2018, "to": null }
+      ] },
+      { "id": "torres", "name": "Torres", "generations": [
+        { "id": "torres-1", "name": "Torres", "from": 2022, "to": null }
+      ] }
+    ] },
+    { "id": "isuzu", "name": "Isuzu", "models": [
+      { "id": "d-max", "name": "D-Max", "generations": [
+        { "id": "d-max-1", "name": "D-Max I", "from": 2002, "to": 2011 },
+        { "id": "d-max-2", "name": "D-Max II", "from": 2011, "to": 2020 },
+        { "id": "d-max-3", "name": "D-Max III", "from": 2020, "to": null }
+      ] },
+      { "id": "trooper", "name": "Trooper", "generations": [
+        { "id": "trooper-1", "name": "Trooper", "from": 1991, "to": 2002 }
+      ] }
+    ] },
+    { "id": "iveco", "name": "Iveco", "models": [
+      { "id": "daily", "name": "Daily", "generations": [
+        { "id": "daily-1", "name": "Daily (1978)", "from": 1978, "to": 1990 },
+        { "id": "daily-2", "name": "Daily (1990)", "from": 1990, "to": 2000 },
+        { "id": "daily-3", "name": "Daily (2000)", "from": 2000, "to": 2014 },
+        { "id": "daily-4", "name": "Daily (2014)", "from": 2014, "to": 2019 },
+        { "id": "daily-5", "name": "Daily (2019)", "from": 2019, "to": null }
+      ] }
+    ] },
+    { "id": "subaru", "name": "Subaru", "models": [
+      { "id": "forester", "name": "Forester", "generations": [
+        { "id": "forester-1", "name": "Forester I", "from": 1997, "to": 2002 },
+        { "id": "forester-2", "name": "Forester II", "from": 2002, "to": 2008 },
+        { "id": "forester-3", "name": "Forester III", "from": 2008, "to": 2012 },
+        { "id": "forester-4", "name": "Forester IV", "from": 2012, "to": 2018 },
+        { "id": "forester-5", "name": "Forester V", "from": 2018, "to": null }
+      ] },
+      { "id": "outback", "name": "Outback", "generations": [
+        { "id": "outback-1", "name": "Outback I", "from": 1994, "to": 1999 },
+        { "id": "outback-2", "name": "Outback II", "from": 1999, "to": 2003 },
+        { "id": "outback-3", "name": "Outback III", "from": 2003, "to": 2009 },
+        { "id": "outback-4", "name": "Outback IV", "from": 2009, "to": 2014 },
+        { "id": "outback-5", "name": "Outback V", "from": 2014, "to": 2019 },
+        { "id": "outback-6", "name": "Outback VI", "from": 2019, "to": null }
+      ] },
+      { "id": "impreza", "name": "Impreza", "generations": [
+        { "id": "impreza-1", "name": "Impreza I", "from": 1992, "to": 2000 },
+        { "id": "impreza-2", "name": "Impreza II", "from": 2000, "to": 2007 },
+        { "id": "impreza-3", "name": "Impreza III", "from": 2007, "to": 2011 },
+        { "id": "impreza-4", "name": "Impreza IV", "from": 2011, "to": 2016 },
+        { "id": "impreza-5", "name": "Impreza V", "from": 2016, "to": 2023 }
+      ] },
+      { "id": "xv", "name": "XV", "generations": [
+        { "id": "xv-1", "name": "XV I", "from": 2012, "to": 2017 },
+        { "id": "xv-2", "name": "XV II", "from": 2017, "to": 2023 },
+        { "id": "xv-3", "name": "XV III", "from": 2023, "to": null }
+      ] },
+      { "id": "brz", "name": "BRZ", "generations": [
+        { "id": "brz-1", "name": "BRZ I", "from": 2012, "to": 2020 },
+        { "id": "brz-2", "name": "BRZ II", "from": 2021, "to": null }
+      ] }
+    ] },
+    { "id": "mg", "name": "MG", "models": [
+      { "id": "zs", "name": "ZS", "generations": [
+        { "id": "zs-1", "name": "ZS", "from": 2017, "to": null }
+      ] },
+      { "id": "hs", "name": "HS", "generations": [
+        { "id": "hs-1", "name": "HS", "from": 2018, "to": null }
+      ] },
+      { "id": "mg5", "name": "MG5", "generations": [
+        { "id": "mg5-1", "name": "MG5", "from": 2020, "to": null }
+      ] },
+      { "id": "marvel-r", "name": "Marvel R", "generations": [
+        { "id": "marvel-r-1", "name": "Marvel R", "from": 2021, "to": null }
+      ] },
+      { "id": "mg4", "name": "MG4", "generations": [
+        { "id": "mg4-1", "name": "MG4", "from": 2022, "to": null }
+      ] }
+    ] }
+  ]
+}

@@ -5,7 +5,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,7 +14,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import FaultRow from "@/src/components/FaultRow";
 import NeonButton from "@/src/components/NeonButton";
-import { useToast } from "@/src/components/Toast";
 import { useObd } from "@/src/context/ObdContext";
 import { carWasRead } from "@/src/obd/diagnostics";
 import type { DiagnosticReport } from "@/src/obd/types";
@@ -30,17 +28,15 @@ import { colors, font, radius, spacing, type } from "@/src/theme";
  */
 const MIN_SCAN_MS = 800;
 
-export default function FaultCodesScreen() {
+export default function ResultsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const toast = useToast();
-  const { vehicle, runScan } = useObd();
+  const { vehicle, runScan, disconnect } = useObd();
 
   const [phase, setPhase] = useState<"scanning" | "done" | "error">("scanning");
   const [step, setStep] = useState({ stage: "Contacting the adapter…", index: 0, total: 0 });
   const [report, setReport] = useState<DiagnosticReport | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
 
   const progress = useRef(new Animated.Value(0)).current;
   const started = useRef(false);
@@ -83,6 +79,14 @@ export default function FaultCodesScreen() {
           ? Haptics.NotificationFeedbackType.Warning
           : Haptics.NotificationFeedbackType.Success,
       );
+      // Sent here rather than behind a button, and the driver never sees it.
+      // The button was in the way: a pass the driver had already read on
+      // screen asked to be sent before the app would let them leave, and the
+      // one thing worse than a report nobody sends is a diagnosis the driver
+      // had to tap past. Failure is swallowed on purpose — the result on
+      // screen is the product, and a network the car park does not have must
+      // not turn a completed scan into an error.
+      void sendReport(vehicle ?? unidentifiedVehicle, result).catch(() => {});
     } catch (err) {
       if (cancelled.current) return;
       setScanError(
@@ -91,7 +95,7 @@ export default function FaultCodesScreen() {
       setPhase("error");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
-  }, [runScan, progress]);
+  }, [runScan, progress, vehicle]);
 
   useEffect(
     () => () => {
@@ -108,18 +112,14 @@ export default function FaultCodesScreen() {
 
   if (!vehicle) return <Redirect href="/" />;
 
-  const onSend = async () => {
-    if (!report) return;
-    setSending(true);
-    try {
-      await sendReport(vehicle, report);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      toast("Check result sent", "success");
-      router.replace("/dashboard");
-    } catch {
-      toast("Failed to send result. Try again.", "error");
-      setSending(false);
-    }
+  const onClose = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Closing the session, not just the screen: the adapter is released and
+    // the app goes back to the search it started from. Leaving the socket
+    // open here would hold the ELM327 against the next driver who plugs it
+    // into a different car.
+    disconnect();
+    router.replace("/");
   };
 
   const widthInterp = progress.interpolate({
@@ -132,35 +132,17 @@ export default function FaultCodesScreen() {
   // "Nothing was found" and "nothing could be read" are different answers,
   // and only the coverage list can tell them apart. Without this check an
   // ECU that refuses every request would render as a clean bill of health.
-  // The list itself is no longer drawn — the report still carries it, and so
-  // does the chat — but the distinction it makes is not a display detail, so
-  // the computation stays.
   const readable = report ? carWasRead(report.coverage) : false;
-  // The pipeline names an unknown car "Unknown" (`unidentifiedVehicle`), which
-  // is a placeholder for the code, not a word for a driver — and this line is
-  // now the whole identity on screen.
-  const named = !!vehicle.make && vehicle.make !== "Unknown";
-  const carName = vehicle.model ? `${vehicle.make} ${vehicle.model}` : vehicle.make;
-  // An unread year is 0, and "· 0" reads as a real model year.
   const carLine =
-    vehicle.year > 0 ? `${carName} · ${vehicle.year}` : carName;
+    vehicle.year > 0
+      ? `${vehicle.make} ${vehicle.model} · ${vehicle.year}`
+      : `${vehicle.make} ${vehicle.model}`;
 
   return (
     <View style={styles.root}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable
-          testID="back-button"
-          onPress={() => router.back()}
-          hitSlop={12}
-          style={styles.backBtn}
-        >
-          <MaterialCommunityIcons
-            name="chevron-left"
-            size={26}
-            color={colors.onSurface}
-          />
-        </Pressable>
-        <Text style={styles.headerTitle}>Diagnostic Scan</Text>
+        <View style={{ width: 26 }} />
+        <Text style={styles.headerTitle}>Diagnosis</Text>
         <View style={{ width: 26 }} />
       </View>
 
@@ -215,18 +197,17 @@ export default function FaultCodesScreen() {
             showsVerticalScrollIndicator={false}
           >
             {/* The result is the car and the codes. Mileage, the lamp, the
-                list of requests and the adapter's own words are all in the
-                report — the chat shows them and the dashboard's evidence
-                panel shows the raw bytes — but none of them is what a driver
-                opened this screen to read. */}
+                coverage roll call and the adapter's own transcript are all
+                still in the report the scan returns; none of them is what a
+                driver opened this screen to read. */}
             <View style={styles.vehicleLine}>
               <MaterialCommunityIcons
                 name="car"
                 size={16}
                 color={colors.onSurfaceTertiary}
               />
-              <Text style={styles.vehicleText}>
-                {named ? carLine : "Vehicle not identified"}
+              <Text style={styles.vehicleText} testID="result-vehicle">
+                {carLine}
               </Text>
             </View>
 
@@ -273,8 +254,9 @@ export default function FaultCodesScreen() {
                 <Text style={styles.cleanTitle}>Nothing could be read</Text>
                 <Text style={styles.cleanSub}>
                   The adapter answered, but this vehicle did not return any
-                  fault-code data. That is not a clean bill of health. Send the
-                  result — the report says what each request returned.
+                  fault-code data. That is not a clean bill of health, and it
+                  is not a diagnosis — check the ignition is in position II,
+                  the adapter is fully seated, and try again.
                 </Text>
               </View>
             )}
@@ -284,11 +266,10 @@ export default function FaultCodesScreen() {
             style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}
           >
             <NeonButton
-              testID="send-result-button"
-              label="Send check result"
-              icon="cloud-upload"
-              loading={sending}
-              onPress={onSend}
+              testID="close-button"
+              label="Close"
+              icon="close"
+              onPress={onClose}
             />
           </View>
         </>
@@ -296,6 +277,18 @@ export default function FaultCodesScreen() {
     </View>
   );
 }
+
+/** Only reachable if the screen is mounted without a vehicle, which the
+ *  redirect above already prevents — but `sendReport` takes a `Vehicle` and
+ *  a silent failure here beats a crash on a screen that has already drawn
+ *  the driver's diagnosis. */
+const unidentifiedVehicle = {
+  vin: "",
+  make: "Unknown",
+  model: "",
+  year: 0,
+  mileage: null,
+} as const;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
@@ -306,7 +299,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
   },
-  backBtn: { width: 26, alignItems: "flex-start" },
   headerTitle: {
     color: colors.onSurface,
     fontFamily: font.displaySemi,

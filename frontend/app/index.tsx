@@ -18,10 +18,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Logo from "@/src/components/Logo";
 import NeonButton from "@/src/components/NeonButton";
+import { BUILD_STAMP } from "@/src/build";
 import { useObd } from "@/src/context/ObdContext";
 import { getTransport } from "@/src/obd";
-import type { Identification } from "@/src/obd/identify";
-import { identifyVehicle, unidentified } from "@/src/obd/identify";
 import { OdbScanError } from "@/src/obd/transport";
 import type { ObdDevice } from "@/src/obd/types";
 import { colors, font, radius, spacing, type } from "@/src/theme";
@@ -220,26 +219,18 @@ export default function ConnectScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
-    // Identify the vehicle: mode 09 read (VIN/CALID/ECU name/protocol),
-    // vPIC decode and consistency checks. Failing this step must not
-    // block the connection — the dashboard shows the warnings instead.
-    let identification: Identification;
-    try {
-      identification = await identifyVehicle(transport);
-    } catch (e) {
-      // The link is up but mode 09 did not complete. Say so on the
-      // dashboard rather than filling the fields with a guessed car.
-      identification = unidentified(
-        e instanceof Error
-          ? `Vehicle identification failed: ${e.message}`
-          : "Vehicle identification failed.",
-      );
-    }
-    // The transport is handed to the context so the scan screen can run a
-    // pass over this same connection.
-    connect(device, identification, transport);
+    // No vehicle read here. Mode 09 used to run at this point, and on every
+    // car this app has actually met it spent twelve seconds on the bus to
+    // come back with nothing — `BUS BUSY`, `NO DATA`, or five characters of
+    // a KWP2000 frame. A driver who has just waited through a Bluetooth
+    // pairing is not owed a second wait for a name the next screen is about
+    // to ask them for anyway.
+    //
+    // The transport is handed to the context so the picker and the scan can
+    // use this same connection.
+    connect(device, transport);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    router.replace("/dashboard");
+    router.replace("/car");
   };
 
   const retry = reset;
@@ -437,6 +428,17 @@ export default function ConnectScreen() {
               onPress={retry}
             />
           )}
+          {/* The build, on the first screen there is.
+              The Telegram message used to end with the stamp, and that was
+              the only place it was ever read — which made the chat the only
+              way to answer "is the phone running the build we just made?".
+              The message is three lines now and the stamp is not one of
+              them, so it lives here instead: on screen before anything is
+              plugged in, in every screenshot of the app, and out of the way
+              of everything the driver is looking at. */}
+          <Text style={styles.buildStamp} testID="build-stamp">
+            {BUILD_STAMP}
+          </Text>
         </View>
       </View>
     </View>
@@ -656,4 +658,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   footer: { gap: spacing.md },
+  buildStamp: {
+    color: colors.onSurfaceTertiary,
+    fontFamily: font.regular,
+    fontSize: 10,
+    letterSpacing: 1,
+    textAlign: "center",
+    opacity: 0.6,
+  },
 });

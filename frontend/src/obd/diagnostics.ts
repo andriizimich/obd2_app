@@ -41,6 +41,7 @@ import {
 } from "@/src/obd/mode03";
 import { busFaultIn } from "@/src/obd/frames";
 import {
+  closeProtocol,
   detectProtocolCode,
   hardResetAdapter,
   PROTOCOL_NAMES,
@@ -187,7 +188,14 @@ export async function readDiagnosticsOver(
    * either. Five resets would be five `ATZ` on a bus that is already refusing,
    * and the driver waiting through all of them.
    */
-  let busResetSpent = false;
+  let busRecoverySpent = false;
+  /**
+   * Whether the recovery below left the adapter on a protocol of this pass's
+   * choosing. It has to be undone before the pass returns for the same reason
+   * the VIN read undoes its own: a pinned protocol is right for one bad bus
+   * and wrong for the next car this adapter is plugged into.
+   */
+  let protocolPinned = false;
 
   /** What the adapter said when it had no data, for the summary note. */
   const refusals = new Set<string>();
@@ -310,9 +318,9 @@ export async function readDiagnosticsOver(
         // The adapter naming the bus as the fault. This is the one failure
         // here that is about the adapter's own ability to transmit: `BUS BUSY`
         // is the line held and `BUS ERROR` a framing failure on the wire, and
-        // neither is the car declining to answer. No protocol choice clears
-        // them and no repeat asks a better question — which is why the repeat
-        // budget above never fires on one — so this is the only step that can.
+        // neither is the car declining to answer. No repeat asks a better
+        // question — which is why the repeat budget above never fires on one
+        // — so this is the only step that can, and it has two rungs.
         //
         // On the first stage that meets it rather than after the fifth has
         // failed the same way. The identification pass waits for the whole
@@ -321,9 +329,33 @@ export async function readDiagnosticsOver(
         // with the driver watching the progress bar move through them. A pass
         // that ends `03 ✗ · 07 ✗ · 0A ✗ · 0101 ✗ · 01A6 ✗` and never tried is
         // the one screen this app must not produce.
-        if (!busResetSpent && busFaultIn(read.lines)) {
-          busResetSpent = true;
-          const reset = await hardResetAdapter(elm, rawLines);
+        if (!busRecoverySpent && busFaultIn(read.lines)) {
+          busRecoverySpent = true;
+          // The cheap rung first. `AT PC` closes the protocol and re-inits
+          // the bus interface — the datasheet names a bus that has been busy
+          // as the reason to use it — and it keeps every setting this pass
+          // has made: echo off, `ATAL`, the reply ceiling. The reset below
+          // keeps none of them, and it is the step for an adapter that is
+          // wedged rather than one whose line is held.
+          const closed = await closeProtocol(elm, rawLines);
+          coverage.push({
+            request: "ATPC",
+            label: "Protocol closed",
+            status: closed.ok ? "ok" : "error",
+            detail: closed.detail,
+          });
+          if (closed.ok) read = await attempt();
+        }
+        // Nothing off the car even after that: the adapter's own state is the
+        // next thing to clear, and the retry after it is only worth making
+        // with the protocol it had found put back. `ATZ` drops the protocol
+        // with everything else, and the auto search it leaves behind cannot
+        // finish on a bus that is still bad — the measured dead session spent
+        // its whole six-second timeout reading `SEARCHING...`, and the next
+        // command cut into that search and came back `STOPPED`.
+        if (busRecoverySpent && (read.failure !== null || busFaultIn(read.lines))) {
+          const reset = await hardResetAdapter(elm, rawLines, protocolCode);
+          if (reset.ok && protocolCode) protocolPinned = true;
           coverage.push({
             request: "ATZ",
             label: "Adapter reset",
@@ -401,6 +433,24 @@ export async function readDiagnosticsOver(
       }
     }
   } finally {
+    // The recovery above pins a protocol so its retry is a read rather than a
+    // search. That pin outlives the reason for it: this adapter is about to be
+    // unplugged from one car and plugged into another. Back to the auto search
+    // before the pass returns, which is also where this pass found it.
+    if (protocolPinned) {
+      try {
+        await ask("ATSP0", 6000);
+        coverage.push({
+          request: "ATSP0",
+          label: "Protocol search restored",
+          status: "ok",
+          detail: "back to automatic protocol search",
+        });
+      } catch {
+        // The pin is a convenience for the next car, not part of this report.
+        // Failing to undo it must not cost the user the pass they just ran.
+      }
+    }
     // Unconditional: ATH0 is the factory default after ATZ, `ATH?` does not
     // exist so there is no previous state to restore, and mode 09's
     // connect-time reads assume headers are off.

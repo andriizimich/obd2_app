@@ -1028,12 +1028,32 @@ type VinDialect = {
  * A truncated multi-frame answer and a genuinely short one are the same bytes
  * to the parser, so the wait is the first thing to rule out.
  *
- * 0x64 is 400 ms: double the factory value, still inside P2 timing, and a
- * failed read pays it once per request rather than per retry. It is a
- * *ceiling* rather than a fixed wait, because adaptive timing is on — see
- * {@link slowDownReads} for why that is the mode it is left in.
+ * 0x64 was 400 ms, and the 2026-09-21 run on the same car showed it is not
+ * enough: `1A 90` answered at `+241 ms` and the command closed at `+651 ms` —
+ * the adapter held the line for 410 ms, which is the ceiling to the
+ * millisecond, and the reads disagreed with each other about how many
+ * characters came back (five on one run, six on another, always a prefix of
+ * the last). A reply that grows along a prefix is a reply whose tail was on
+ * its way; the window that closed on it is this one.
+ *
+ * 0xFF is 1020 ms, the largest `ATST` the ELM327 takes. The cost is paid only
+ * by reads that were going to come back empty anyway — an answered read closes
+ * on its own — and only while {@link slowDownReads} is in force, which is this
+ * function's VIN section and nothing else. The sweep sets its own, lower
+ * ceiling: its per-option budget is 700 ms, and a ceiling above a caller's own
+ * timeout is how `.8` learned to interrupt the adapter mid-command.
+ *
+ * It is a *ceiling* rather than a fixed wait, because adaptive timing is on —
+ * see {@link slowDownReads} for why that is the mode it is left in. That the
+ * measured close landed exactly on the old ceiling is what says the adapter
+ * was using it rather than talking itself into something shorter.
  */
-const ECU_REPLY_TIMEOUT = "64";
+const ECU_REPLY_TIMEOUT = "FF";
+
+/** The ceiling in force while the identification block is swept. Below
+ *  {@link ID_BLOCK_READ_MS}, deliberately: the sweep's own budget for one
+ *  option is the thing that must fire first. */
+const ECU_REPLY_TIMEOUT_SWEEP = "64";
 
 /** What `ATST` goes back to: the ELM327 factory default, 200 ms. Left as
  *  found, because a longer wait is a cost every later pass pays on a car that
@@ -1164,15 +1184,59 @@ async function slowDownReads(
   transcript: string[],
 ): Promise<TimingResult> {
   const adaptive = await askQuiet(elm, transcript, "ATAT 1", 2000);
-  const timeout = await askQuiet(
-    elm,
-    transcript,
-    `ATST ${ECU_REPLY_TIMEOUT}`,
-    2000,
-  );
+  const timeout = await setCeiling(elm, transcript, ECU_REPLY_TIMEOUT);
   if (refusedCommand(adaptive) || refusedCommand(timeout)) return "unsupported";
   if (adaptive === null || timeout === null) return "silent";
   return "raised";
+}
+
+/**
+ * Move the adapter's wait ceiling on its own, adaptive timing untouched.
+ *
+ * The ceiling is not one value for the whole pass: the VIN reads want the
+ * longest one the adapter takes, and the identification sweep wants one below
+ * its own 700 ms per-option budget. Both are `ATST`, and the only thing that
+ * differs between them is who runs out first.
+ */
+async function setCeiling(
+  elm: Elm327Channel,
+  transcript: string[],
+  value: string,
+): Promise<string[] | null> {
+  return askQuiet(elm, transcript, `ATST ${value}`, 2000);
+}
+
+/** What came of asking for long messages. Same three outcomes as the timing
+ *  knob, for the same reason: "the clone does not implement it" and "the
+ *  adapter is not talking" are different facts about a session. */
+type LongMessageResult = "allowed" | "unsupported" | "silent";
+
+/**
+ * Ask the adapter to carry a reply longer than seven data bytes, and keep the
+ * answer.
+ *
+ * The older protocols cap a message at seven data bytes, and the ELM327
+ * enforces that cap on what it will *receive*: by default a longer frame is
+ * taken as far as the seventh byte and the rest is gone. `ATAL` lifts it. The
+ * measured car answers `1A 90` with `5A 90` followed by five characters and
+ * two bytes that changed between two runs — seven data bytes, which is the
+ * default limit to the byte, against a VIN that needs nineteen. So the
+ * question "is `ATAL` in force" decides whether the five characters are the
+ * car's answer or the adapter's ceiling, and nothing else on the evidence
+ * screen can tell those apart.
+ *
+ * Sent and recorded rather than sent and assumed: the clone in hand answers
+ * `?` to commands it does not implement, and a refusal leaves exactly the
+ * reads that were seen.
+ */
+async function setAllowLong(
+  elm: Elm327Channel,
+  transcript: string[],
+): Promise<LongMessageResult> {
+  const answer = await askQuiet(elm, transcript, "ATAL", 2000);
+  if (refusedCommand(answer)) return "unsupported";
+  if (answer === null) return "silent";
+  return "allowed";
 }
 
 /** Put the adapter's wait back where it was found. */
@@ -1182,6 +1246,31 @@ async function restoreReadTiming(
 ): Promise<void> {
   await askQuiet(elm, transcript, "ATAT 1", 2000);
   await askQuiet(elm, transcript, `ATST ${ECU_REPLY_TIMEOUT_DEFAULT}`, 2000);
+}
+
+/**
+ * Close the protocol and let the adapter re-init the bus. The cheap half of a
+ * recovery, and the one the datasheet names for this exact fault: `AT PC` is
+ * documented as the way to re-initiate a protocol "for example after the bus
+ * has been busy", which is what `BUS BUSY` means. One command, and it keeps
+ * everything the pass relies on — echo off, `ATAL`, the reply ceiling — where
+ * the reset below throws all of it away.
+ */
+export async function closeProtocol(
+  elm: Elm327Channel,
+  transcript: string[],
+): Promise<{ ok: boolean; detail: string }> {
+  const answer = await askQuiet(elm, transcript, "ATPC", 4000);
+  if (answer === null) {
+    return { ok: false, detail: "no answer to AT PC before the timeout" };
+  }
+  if (refusedCommand(answer)) {
+    return {
+      ok: false,
+      detail: "the adapter does not implement AT PC — the bus is still held",
+    };
+  }
+  return { ok: true, detail: "the protocol was closed and the bus re-initialised" };
 }
 
 /**
@@ -1205,6 +1294,9 @@ async function restoreReadTiming(
 export async function hardResetAdapter(
   elm: Elm327Channel,
   transcript: string[],
+  /** The protocol code `ATDPN` reported before the reset, when the caller has
+   *  one. See the pin at the end of this function. */
+  protocolCode: string | null = null,
 ): Promise<{ ok: boolean; detail: string }> {
   const reset = await askQuiet(elm, transcript, "ATZ", 8000);
   if (reset === null) {
@@ -1233,11 +1325,39 @@ export async function hardResetAdapter(
   // after a reset, and a VIN that arrives in frames is the one read here that
   // notices.
   await askQuiet(elm, transcript, "ATAL", 2000);
+  // The pin, and the reason the retry is worth anything at all. `ATZ` drops
+  // the protocol with everything else, and the auto search it leaves behind
+  // cannot finish on a bus that is still bad: the measured dead session read
+  // `ATZ` → `ATDPN A5` → `0902` → `SEARCHING...` → the whole six-second
+  // timeout → and the next command cut into that search and came back
+  // `STOPPED`. The adapter had already named the protocol; putting it back is
+  // what turns the retry from a search back into a read.
+  if (protocolCode) {
+    await askQuiet(elm, transcript, `ATSP${protocolCode}`, 6000);
+  }
   return {
     ok: true,
-    detail: "the bus stayed silent, so the adapter itself was reset",
+    detail: protocolCode
+      ? `the bus stayed silent, so the adapter itself was reset and pinned back to protocol ${protocolCode}`
+      : "the bus stayed silent, so the adapter itself was reset",
   };
 }
+
+/**
+ * The readers worth asking one module at a time, and the only two this bus
+ * has ever answered.
+ *
+ * Both are J1979/KWP2000 requests a physically addressed module still takes;
+ * neither is a guess about a car, they are the same two questions the
+ * functional pass above already asks. Asking them per module is what turns
+ * "`0902` was refused" into "`0902` was refused by `0x12`", which is the
+ * difference between a car that does not keep its VIN under mode 09 and a
+ * module that does and was drowned out by one that does not.
+ */
+const MODULE_VIN_DIALECTS: { request: string; label: string; anchor: number[] }[] = [
+  { request: "0902", label: "VIN (mode 09)", anchor: VIN_ANCHOR },
+  { request: "1A 90", label: "VIN (KWP2000 1A 90)", anchor: KWP_VIN_ANCHOR },
+];
 
 /**
  * The VIN read that names its module, for the car whose engine controller
@@ -1265,7 +1385,6 @@ export async function readVinFromModules(
   addresses: number[],
   protocolCode: string | null,
   timeoutMs: number,
-  retries: { left: number },
 ): Promise<{ vin: string; from: string } | null> {
   if (protocolCode !== "4" && protocolCode !== "5") return null;
   const targets = [...new Set(addresses)]
@@ -1289,22 +1408,31 @@ export async function readVinFromModules(
       );
       if (refusedCommand(header)) break;
       addressed = true;
-      const answer = await readRecorded(
-        reads,
-        transcript,
-        elm,
-        "1A 90",
-        `VIN (KWP2000 1A 90 → 0x${hex2(address)})`,
-        timeoutMs,
-        (lines) => readingsFrom(lines, KWP_VIN_ANCHOR)[0]?.vin ?? null,
-        (v) => v.length === 0,
-        retries,
-      );
-      if (answer === null) continue;
-      if (found === null || answer.length > found.vin.length) {
-        found = { vin: answer, from: `1A 90 @0x${hex2(address)}` };
+      // Both readers, in the order the functional pass asks them. `1A 90` was
+      // the only one here until the measured car answered `0902` with VIN
+      // fragments on 2026-09-15 and refused it on every run since — and a
+      // functional `0902` reaches every module at once, so a refusal from the
+      // one that does not keep the VIN can be covering for the one that does.
+      // Asked per module, that ambiguity is gone.
+      for (const dialect of MODULE_VIN_DIALECTS) {
+        const answer = await readRecorded(
+          reads,
+          transcript,
+          elm,
+          dialect.request,
+          `${dialect.label} → 0x${hex2(address)}`,
+          timeoutMs,
+          (lines) => readingsFrom(lines, dialect.anchor)[0]?.vin ?? null,
+          (v) => v.length === 0,
+          { left: 0 },
+        );
+        if (answer === null || answer.length === 0) continue;
+        if (found === null || answer.length > found.vin.length) {
+          found = { vin: answer, from: `${dialect.request} @0x${hex2(address)}` };
+        }
+        if (isFullVin(answer)) break;
       }
-      if (isFullVin(answer)) break;
+      if (found !== null && isFullVin(found.vin)) break;
     }
   } finally {
     // Functional addressing is what a scan wants: it asks the whole bus.
@@ -1428,13 +1556,12 @@ export async function readVehicleInfoOver(
   /** Per-read ceiling. Tests drive it to milliseconds; production leaves it
    *  unset and each read keeps the timeout its own command needs. */
   const ms = (own: number) => (timeoutMs ? Math.min(own, timeoutMs) : own);
-  // Ask the adapter to join multi-frame replies into one line; the
-  // parser handles multi-line responses anyway, so a "?" is harmless.
-  try {
-    await elm.command("ATAL", 2000);
-  } catch {
-    // Clone doesn't support ATAL — multi-line parsing takes over.
-  }
+  // `ATAL` used to be sent here, in a `try` whose catch said "the clone does
+  // not support it" — and the answer was thrown away either way. It is asked
+  // inside the pass now (see `askEverything`), because whether the adapter
+  // carries a reply longer than seven data bytes is the first thing to know
+  // about a VIN that came back five characters long, and a command whose
+  // reply nobody reads cannot say.
 
   // Every read is best-effort: one unsupported PID must not lose the rest.
   //
@@ -1475,6 +1602,32 @@ export async function readVehicleInfoOver(
       },
       none, retries,
     );
+
+    // Asked before any read below, and recorded, because a reply cut short
+    // and a reply the ECU never finished look identical from every one of
+    // them. See `setAllowLong` for why the seven-byte limit is the one that
+    // matters on this car.
+    const longMessages = await setAllowLong(elm, rawLines);
+    reads.push({
+      request: "ATAL",
+      label: "Long messages",
+      // Silence is an error here for the same reason it is one for `ATST`: an
+      // adapter that says nothing has told us nothing about what it
+      // implements, and a car whose reads all fail is exactly the session
+      // where that difference has to be on the record.
+      status:
+        longMessages === "allowed"
+          ? "ok"
+          : longMessages === "unsupported"
+            ? "unsupported"
+            : "error",
+      detail:
+        longMessages === "allowed"
+          ? "replies are not cut at the seven data bytes the older protocols allow"
+          : longMessages === "unsupported"
+            ? "the adapter does not implement ATAL — a longer reply stops at its seventh data byte"
+            : "no answer to ATAL before the timeout",
+    });
 
     // Longer waits before the first VIN request, not after: the frames a
     // short answer is missing are lost *during* the read, so a timeout raised
@@ -1575,19 +1728,41 @@ export async function readVehicleInfoOver(
     // And the sweep only runs when the caller asked for it: twelve seconds of
     // probing on an unknown ECU belongs after the codes are in hand, never
     // before them. See `VehicleInfoOptions.sweepIdentification`.
-    const heardCar =
-      reads.some((r) => r.request !== "ATDPN" && r.status === "ok") ||
-      reads.some((r) => r.request !== "ATDPN" && r.status === "unsupported");
+    // The adapter's own rows are not the car. `ATDPN`, `ATST` and `ATAL` are
+    // answered by the dongle with no help from the bus, and counting them
+    // would send the sweep below probing for twelve seconds on a car that is
+    // not there — which is the one thing the gate exists to prevent. A read
+    // the ECU *refused* is the opposite case and counts: something on the bus
+    // answered, and said no.
+    const adapterRows = new Set(["ATDPN", `ATST ${ECU_REPLY_TIMEOUT}`, "ATAL"]);
+    const heardCar = reads.some(
+      (r) =>
+        !adapterRows.has(r.request) &&
+        (r.status === "ok" || r.status === "unsupported"),
+    );
     const sweep =
       opts.sweepIdentification === true &&
       !candidates.some((c) => isFullVin(c.vin)) &&
       legacyBus &&
       heardCar
-        ? await sweepIdentificationBlock(
-            elm, reads, rawLines, ms(ID_BLOCK_READ_MS),
-            // Only skipped when one of the dialects above already asked it.
-            sweepSkip,
-          )
+        ? await (async () => {
+            // The sweep's own budget for a single option is 700 ms, so the
+            // adapter has to give up before the app does. A ceiling above the
+            // caller's own timeout is how `.8` came to write into a command
+            // still in flight and read the wreckage as `STOPPED`; the VIN
+            // reads above want the longest wait the adapter takes, and this
+            // one wants a shorter one than it will wait for.
+            await setCeiling(elm, rawLines, ECU_REPLY_TIMEOUT_SWEEP);
+            try {
+              return await sweepIdentificationBlock(
+                elm, reads, rawLines, ms(ID_BLOCK_READ_MS),
+                // Only skipped when one of the dialects above already asked it.
+                sweepSkip,
+              );
+            } finally {
+              await setCeiling(elm, rawLines, ECU_REPLY_TIMEOUT);
+            }
+          })()
         : null;
 
     // One line for the whole sweep. Its findings are above it as their own
@@ -1623,7 +1798,7 @@ export async function readVehicleInfoOver(
     if (!candidates.some((c) => isFullVin(c.vin)) && (opts.moduleAddresses?.length ?? 0) > 0) {
       const addressed = await readVinFromModules(
         elm, reads, rawLines, opts.moduleAddresses ?? [], protocolCode,
-        ms(6000), retries,
+        ms(6000),
       );
       if (addressed !== null) candidates.push(addressed);
     }
@@ -1724,11 +1899,38 @@ export async function readVehicleInfoOver(
     // it was. That one is a statement about the car, and at connect time the
     // driver is waiting on it before a single fault code has been read.
     const mayRecover = !pass.heardAnything && !adapterMute;
+    /** The protocol the pass above named, for the reset to pin back to. Read
+     *  from the pass rather than re-asked: `ATDPN` on a dead bus answers
+     *  perfectly, so a fresh read would be a question already answered. */
+    const resetProtocol = pass?.protocolCode ?? null;
+    /** Whether this recovery left the adapter on a protocol of the app's
+     *  choosing, which is the one thing it has to undo before it returns. */
+    let pinned = false;
     if (mayRecover && (busRefused || opts.sweepIdentification === true)) {
-      if (opts.sweepIdentification === true && !busRefused) {
+      // The first rung, and the only one written for a held line. It used to
+      // go straight to the reset, which clears the adapter and nothing else:
+      // the measured dead bus answered `BUS BUSY` to every read, was reset,
+      // and answered `BUS BUSY` to every read again. `AT PC` closes the
+      // protocol and re-inits the bus interface — the datasheet names a busy
+      // bus as the reason to use it — and it costs none of the settings the
+      // reset throws away.
+      if (busRefused) {
+        const closed = await closeProtocol(elm, rawLines);
+        reads.push({
+          request: "ATPC",
+          label: "Protocol closed",
+          status: closed.ok ? "ok" : "error",
+          detail: closed.detail,
+        });
+        if (closed.ok) {
+          const retry = await askEverything();
+          if (retry.heardAnything) pass = retry;
+        }
+      }
+      if (!pass.heardAnything && opts.sweepIdentification === true && !busRefused) {
         for (const protocol of FORCED_PROTOCOLS) {
-          const pinned = await askQuiet(elm, rawLines, protocol.command, 6000);
-          if (refusedCommand(pinned)) continue;
+          const reply = await askQuiet(elm, rawLines, protocol.command, 6000);
+          if (refusedCommand(reply)) continue;
           reads.push({
             request: protocol.command,
             label: "Protocol forced",
@@ -1743,7 +1945,8 @@ export async function readVehicleInfoOver(
         }
       }
       if (!pass.heardAnything) {
-        const reset = await hardResetAdapter(elm, rawLines);
+        const reset = await hardResetAdapter(elm, rawLines, resetProtocol);
+        if (reset.ok && resetProtocol) pinned = true;
         reads.push({
           request: "ATZ",
           label: "Adapter reset",
@@ -1756,20 +1959,21 @@ export async function readVehicleInfoOver(
         }
       }
       // Back to the auto search: a pinned protocol is right for one bad bus
-      // and wrong for the next car this adapter is plugged into. Only the
-      // sweep pins anything, so only the sweep has something to undo — the
-      // reset above leaves the adapter on the default this restores.
-      if (opts.sweepIdentification === true) {
+      // and wrong for the next car this adapter is plugged into. The sweep
+      // pins one, and so does the reset when it had a code to put back, so
+      // those are the two cases with something to undo.
+      if (opts.sweepIdentification === true || pinned) {
         await askQuiet(elm, rawLines, "ATSP0", 6000);
       }
     }
   } finally {
     // The longer wait belongs to the reads above, and it is put back whatever
     // happened in between. The channel outlives this function — the scan runs
-    // on it afterwards — and a scan that inherits `ATST 64` waits 400 ms for
-    // every request a silent module never answers, with adaptive timing
-    // compounding it. The same argument the module header is restored under,
-    // and the reason both live in a `finally`.
+    // on it afterwards — and a scan that inherits the ceiling these reads
+    // chose waits that whole ceiling out for every request a silent module
+    // never answers, with adaptive timing compounding it. The same argument
+    // the module header is restored under, and the reason both live in a
+    // `finally`.
     await restoreReadTiming(elm, rawLines);
   }
 

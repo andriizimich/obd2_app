@@ -51,9 +51,9 @@ export default function RootLayout() {
               }}
             >
               <Stack.Screen name="index" />
-              <Stack.Screen name="dashboard" />
+              <Stack.Screen name="car" />
               <Stack.Screen
-                name="fault-codes"
+                name="results"
                 options={{ animation: "slide_from_bottom" }}
               />
             </Stack>
